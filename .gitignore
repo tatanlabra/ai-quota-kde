@@ -1,0 +1,29 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Secretos y configuración local
+.env
+.env.*
+*.env
+secrets.env
+config.toml
+status.json
+
+# Exportaciones y capturas privadas
+*.html
+*_files/
+tests/fixtures/raw/
+
+# Editores y sistema
+.idea/
+.vscode/
+*~
+.DS_Store

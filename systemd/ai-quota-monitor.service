@@ -1,0 +1,14 @@
+[Unit]
+Description=Refresh AI quota monitor cache
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/ai-quota-monitor refresh --online
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+# El monitor necesita leer los directorios locales de cada CLI bajo $HOME.
+ProtectHome=no
+ReadWritePaths=%h/.cache/ai-quota-monitor %h/.config/ai-quota-monitor

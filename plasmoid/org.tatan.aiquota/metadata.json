@@ -1,0 +1,15 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Id": "org.tatan.aiquota",
+        "Name": "AI Quota HUD",
+        "Description": "Monitor local de uso de Claude Code, Codex y Gemini CLI",
+        "Icon": "utilities-system-monitor",
+        "Version": "0.2.0",
+        "License": "MIT",
+        "Authors": [{"Name": "tatán"}],
+        "Category": "System Information"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0",
+    "X-Plasma-MainScript": "ui/main.qml"
+}

@@ -1,0 +1,8 @@
+{
+  "source": "wham",
+  "snapshot_ts": "2026-06-09T03:07:19Z",
+  "plan_type": "plus",
+  "primary":   {"used_percent": 53, "reset_at": 1780988053},
+  "secondary": {"used_percent": 88, "reset_at": 1781140113},
+  "credits_balance": 362.62
+}

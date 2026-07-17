@@ -1,0 +1,13 @@
+[Unit]
+Description=Refresh AI quota monitor cache periodically
+
+[Timer]
+# Las ventanas 5h/7d cambian lento; sondear cada 60s disparaba HTTP 429 (rate limit)
+# en la usage endpoint de Claude. 5 min es de sobra y evita el rate limiting.
+OnBootSec=45s
+OnUnitActiveSec=300s
+AccuracySec=30s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
