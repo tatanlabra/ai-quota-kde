@@ -1,0 +1,7 @@
+singleton HudPalette 1.0 HudPalette.qml
+DonutGauge 1.0 DonutGauge.qml
+MetricLine 1.0 MetricLine.qml
+QuotaTooltip 1.0 QuotaTooltip.qml
+StatusFile 1.0 StatusFile.qml
+ShellRunner 1.0 ShellRunner.qml
+ProviderGauge 1.0 ProviderGauge.qml

@@ -5,53 +5,11 @@ import os
 import subprocess
 from typing import Any
 
-from ..paths import CACHE_DIR, HELPER_DEEPSEEK
+from ..paths import HELPER_DEEPSEEK
 from ..schema import Provider, ProviderWindow
-from ..security import atomic_write
 
 DEFAULT_CLP_PER_USD = 950.0
 DEFAULT_CLP_PER_CNY = 132.0
-
-# High-water-mark del saldo por moneda: la API no expone un techo, así que el % de
-# saldo restante se deriva del pico observado (se eleva al recargar). Persistente.
-PEAK_FILE = CACHE_DIR / "deepseek_peak.json"
-
-
-def _load_peak(currency: str) -> float:
-    try:
-        data = json.loads(PEAK_FILE.read_text(encoding="utf-8"))
-        if str(data.get("currency", "")).upper() == currency.upper():
-            return float(data.get("peak", 0.0))
-    except (OSError, ValueError, json.JSONDecodeError):
-        pass
-    return 0.0
-
-
-def _save_peak(currency: str, peak: float) -> None:
-    try:
-        CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        atomic_write(PEAK_FILE, json.dumps({"currency": currency.upper(), "peak": peak}))
-    except OSError:
-        pass
-
-
-def _remaining_percent(currency: str, total: float) -> float | None:
-    """Devuelve el % CONSUMIDO (0-1) respecto al pico histórico de saldo.
-    El anillo de la UI muestra 1 - percent = saldo restante. None si no hay base."""
-    if total <= 0:
-        # Saldo agotado o sin dato: si hubo pico, está 100% consumido.
-        peak = _load_peak(currency)
-        return 1.0 if peak > 0 else None
-    peak = _load_peak(currency)
-    ceiling = max(peak, total)
-    if ceiling > total:
-        # Pico mayor: hubo consumo desde la última recarga.
-        _save_peak(currency, ceiling)
-        return min(max(1.0 - total / ceiling, 0.0), 1.0)
-    # total >= peak → recarga (o primera lectura): nuevo pico, saldo lleno.
-    _save_peak(currency, total)
-    return 0.0
-
 
 def _run_helper() -> dict[str, Any] | None:
     if not HELPER_DEEPSEEK.exists():
@@ -119,7 +77,7 @@ def collect(cfg: dict) -> Provider:
             rate = _rate_for(currency, balance_cfg)
             checked_at = raw.get("checked_at")
             available = raw.get("is_available")
-            # Override opcional: techo fijo en CLP. Si no, high-water-mark de la API.
+            # Presupuesto personal opcional: nunca se infiere desde un máximo histórico.
             budget_clp = _parse_amount(balance_cfg.get("budget_clp")) if balance_cfg.get("budget_clp") else 0.0
 
             note_bits = [f"{total:.2f} {currency}"]
@@ -130,48 +88,52 @@ def collect(cfg: dict) -> Provider:
             if available is False:
                 note_bits.append("no disponible para inferencia")
 
-            if rate:
-                clp = round(total * rate)
-                if budget_clp > 0:
-                    pct = min(max(1.0 - clp / budget_clp, 0.0), 1.0)
-                else:
-                    pct = _remaining_percent(currency, total)
-                return Provider(
-                    id="deepseek",
-                    label="DEEPSEEK",
-                    status="ok" if available else "degraded",
-                    windows=[
-                        ProviderWindow(
-                            id="balance",
-                            label="Saldo CLP",
-                            used=float(clp),
-                            limit=float(round(budget_clp)) if budget_clp > 0 else None,
-                            unit="clp_estimated",
-                            percent=pct,
-                            confidence="configured_estimate",
-                            source="api.deepseek.com/user/balance + configured FX",
-                            note="; ".join(note_bits),
-                        )
-                    ],
-                    error=None if available else "saldo insuficiente o cuenta no disponible",
+            # /user/balance es la fuente de verdad: no comunica una cuota, ni el
+            # vencimiento del crédito gratuito. Nunca lo convertimos en porcentaje.
+            windows = [
+                ProviderWindow(
+                    id="balance",
+                    label=f"Saldo {currency or 'original'}",
+                    used=total,
+                    limit=None,
+                    unit=(currency.lower() if currency else "currency"),
+                    percent=None,
+                    metric_kind="balance",
+                    renewal_kind="none",
+                    confidence="official",
+                    source="api.deepseek.com/user/balance",
+                    note="; ".join(note_bits + ["recarga sin vencimiento; crédito gratis: Billing"]),
+                )
+            ]
+
+            # El presupuesto CLP sigue siendo útil para planificación personal, pero
+            # es otro dato: saldo API × FX manual contra un techo local explícito.
+            if rate and budget_clp > 0:
+                balance_clp = round(total * rate)
+                spent_clp = min(max(budget_clp - balance_clp, 0.0), budget_clp)
+                windows.append(
+                    ProviderWindow(
+                        id="budget",
+                        label="Presupuesto CLP",
+                        used=float(round(spent_clp)),
+                        limit=float(round(budget_clp)),
+                        unit="clp_estimated",
+                        percent=spent_clp / budget_clp,
+                        metric_kind="quota",
+                        renewal_kind="none",
+                        confidence="configured_estimate",
+                        source="saldo API × FX configurado / presupuesto local",
+                        note=(
+                            f"saldo estimado ${balance_clp:,} CLP; "
+                            f"FX {rate:.2f} {currency}/CLP configurado"
+                        ),
+                    )
                 )
             return Provider(
                 id="deepseek",
                 label="DEEPSEEK",
                 status="ok" if available else "degraded",
-                windows=[
-                    ProviderWindow(
-                        id="balance",
-                        label=f"Saldo {currency or 'original'}",
-                        used=total,
-                        limit=None,
-                        unit=(currency.lower() if currency else "currency"),
-                        percent=_remaining_percent(currency, total),
-                        confidence="official",
-                        source="api.deepseek.com/user/balance",
-                        note="; ".join(note_bits + ["CLP no configurado"]),
-                    )
-                ],
+                windows=windows,
                 error=None if available else "saldo insuficiente o cuenta no disponible",
             )
 
@@ -183,14 +145,16 @@ def collect(cfg: dict) -> Provider:
         windows=[
             ProviderWindow(
                 id="balance",
-                label="Saldo CLP",
+                label="Saldo API",
                 used=0.0,
                 limit=None,
-                unit="clp_estimated",
+                unit="currency",
                 percent=None,
+                metric_kind="balance",
+                renewal_kind="none",
                 confidence="unknown",
                 source="unavailable",
-                note="sin datos DeepSeek",
+                note="sin saldo DeepSeek consultable",
             )
         ],
         error=f"deepseek sin saldo consultable ({reason})",

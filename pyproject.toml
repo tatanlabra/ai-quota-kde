@@ -11,6 +11,11 @@ dependencies = [
     "rich>=13",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+]
+
 [project.scripts]
 ai-quota-monitor = "ai_quota_monitor.cli:app"
 

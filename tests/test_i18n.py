@@ -1,0 +1,141 @@
+"""El catálogo de traducción, como gate.
+
+Las cadenas fuente están en inglés y el español vive en `po/es.po`. Es la condición que
+la persona usuaria puso para publicar el repositorio, junto con HiDPI.
+"""
+
+from __future__ import annotations
+
+import re
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+UI = ROOT / "plasmoid/org.tatan.aiquota/contents/ui"
+CONFIG = ROOT / "plasmoid/org.tatan.aiquota/contents/config"
+DOMAIN = "plasma_applet_org.tatan.aiquota"
+PO = ROOT / "po" / "es.po"
+POT = ROOT / "po" / f"{DOMAIN}.pot"
+MO = ROOT / f"plasmoid/org.tatan.aiquota/contents/locale/es/LC_MESSAGES/{DOMAIN}.mo"
+
+# Palabras que solo pueden aparecer traducidas, nunca en el fuente.
+SPANISH_SENTINELS = (
+    "libre", "renueva", "hoy", "mañana", "sin dato", "caché", "actualizado",
+    "reinicio", "saldo", "cuota", "espera", "limitado", "proveedor", "solic",
+)
+
+
+def qml_files() -> list[Path]:
+    return sorted(list(UI.rglob("*.qml")) + list(CONFIG.rglob("*.qml")))
+
+
+def source_without_i18n_payloads(text: str) -> str:
+    """El texto del fichero con el contenido de cada i18n vaciado.
+
+    Lo que queda son las cadenas que llegarían a pantalla SIN pasar por el catálogo.
+    """
+    return re.sub(r'i18n[cnp]*\((?:"[^"]*",\s*)?"[^"]*"', 'i18n(""', text)
+
+
+def test_the_catalogue_is_complete_and_the_compiled_file_is_fresh():
+    """Un `.mo` viejo se instala igual de silenciosamente que uno al día.
+
+    falsified_by: 2026-09-06. Editar un `msgstr` de `po/es.po` sin recompilar deja el
+    `.mo` versionado distinto del que produce `msgfmt`, y `cmp` lo detecta. Se observó
+    al revés durante el desarrollo: el catálogo decía «51 traducidos, 9 sin traducir»
+    mientras el widget ya mostraba texto, porque el `.mo` compilado era anterior.
+    """
+    assert MO.exists(), MO
+    stats = subprocess.run(
+        ["msgfmt", "--check", "--statistics", "--output-file=/dev/null", str(PO)],
+        capture_output=True, text=True, check=True,
+    )
+    output = stats.stdout + stats.stderr
+    assert "sin traducir" not in output and "untranslated" not in output, output
+
+    with tempfile.TemporaryDirectory() as tmp:
+        fresh = Path(tmp) / "fresh.mo"
+        subprocess.run(["msgfmt", "--output-file", str(fresh), str(PO)], check=True)
+        assert fresh.read_bytes() == MO.read_bytes(), (
+            "el .mo versionado no coincide con el que produce msgfmt: "
+            "ejecuta scripts/build_locale.sh"
+        )
+
+
+def test_every_message_of_the_template_has_an_entry():
+    """`msgcmp` compara plantilla y catálogo en las dos direcciones."""
+    result = subprocess.run(["msgcmp", str(PO), str(POT)], capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_no_spanish_string_reaches_the_screen_outside_the_catalogue():
+    """Las cadenas fuente son inglesas; el español solo existe dentro de `po/es.po`.
+
+    falsified_by: 2026-09-06. Antes de este trabajo, la interfaz entera estaba escrita
+    en español y sin una sola llamada a i18n: este test encuentra 33 líneas sobre
+    `git show v0.2.0-hud-pre-refactor:…`, y ese es el motivo por el que el repositorio
+    seguía sin publicarse.
+    """
+    offenders = {}
+    for path in qml_files():
+        stripped = source_without_i18n_payloads(path.read_text(encoding="utf-8"))
+        for number, line in enumerate(stripped.splitlines(), 1):
+            code = line.split("//")[0]
+            for match in re.finditer(r'"([^"]{2,})"', code):
+                value = match.group(1)
+                if any(re.search(rf"\b{word}\b", value, re.IGNORECASE) for word in SPANISH_SENTINELS):
+                    offenders.setdefault(path.name, []).append(f"{number}: {value[:60]}")
+    assert offenders == {}, offenders
+
+
+def test_the_context_notes_are_written_for_whoever_translates():
+    """Un `%1` sin explicar es una traducción a ciegas.
+
+    Cada cadena con marcador posicional tiene que llegar al catálogo con su contexto,
+    o quien traduzca no sabe si `%1` es una hora, un porcentaje o un nombre.
+    """
+    template = POT.read_text(encoding="utf-8")
+    entries = re.findall(
+        r'(?:msgctxt "((?:[^"\\]|\\.)*)"\n)?msgid "((?:[^"\\]|\\.)*)"', template
+    )
+    missing = [
+        msgid for context, msgid in entries
+        if "%1" in msgid and not context and msgid not in ("%1 tok",)
+    ]
+    assert missing == [], missing
+
+
+def test_the_installer_compiles_the_catalogue_before_packaging():
+    """kpackagetool6 copia el arbol tal cual: un .mo sin compilar se instala vacio.
+
+    Se compara contra la INVOCACION que empaqueta (`-t Plasma/Applet -i` o `-u`), no
+    contra la primera mencion del binario: la guarda `command -v kpackagetool6` lo
+    nombra antes con toda razon, y un test que no distinga las dos cosas se pone rojo
+    por un orden que es correcto.
+
+    falsified_by: 2026-09-06. Moviendo la llamada a build_locale.sh detras de
+    `kpackagetool6 -t Plasma/Applet -u`, esta asercion falla; y sin la llamada, la
+    primera.
+    """
+    installer = (ROOT / "scripts/install-user.sh").read_text(encoding="utf-8")
+    assert "build_locale.sh" in installer
+    packaging = re.search(r"kpackagetool6 -t Plasma/Applet -[iu]\b", installer)
+    assert packaging is not None, "el instalador ya no empaqueta el plasmoide"
+    assert installer.index("build_locale.sh") < packaging.start()
+
+
+def test_catalogue_source_references_are_relative():
+    """Source locations must be portable between checkout directories.
+
+    falsified_by: 2026-09-06, prior generator emitted absolute checkout paths
+    in both tracked catalogues; this test failed before switching extraction cwd.
+    """
+    for catalogue in (PO, POT):
+        references = re.findall(r'^#: (.+)$', catalogue.read_text(), re.MULTILINE)
+        assert references, catalogue
+        assert all(not Path(ref.rsplit(':', 1)[0]).is_absolute()
+                   for line in references for ref in line.split()), catalogue

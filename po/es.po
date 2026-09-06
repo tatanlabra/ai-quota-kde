@@ -1,0 +1,300 @@
+# Spanish translations for AI Quota package.
+# Copyright (C) 2026 tatan
+# This file is distributed under the same license as the AI Quota HUD package.
+# Automatically generated, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: AI Quota HUD\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-06 19:11-0300\n"
+"PO-Revision-Date: 2026-09-06 18:26-0300\n"
+"Last-Translator: tatan <tatanlabra@gmail.com>\n"
+"Language-Team: none\n"
+"Language: es\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: plasmoid/org.tatan.aiquota/contents/config/config.qml:6
+msgid "General"
+msgstr "General"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/ConfigGeneral.qml:23
+msgid "Providers:"
+msgstr "Proveedores:"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/ConfigGeneral.qml:24
+msgid "Claude"
+msgstr "Claude"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/ConfigGeneral.qml:26
+msgid "Codex"
+msgstr "Codex"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/ConfigGeneral.qml:27
+msgid "Antigravity / Gemini"
+msgstr "Antigravity / Gemini"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/ConfigGeneral.qml:28
+msgid "Copilot"
+msgstr "Copilot"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/ConfigGeneral.qml:29
+msgid "DeepSeek"
+msgstr "DeepSeek"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/ConfigGeneral.qml:35
+msgid "In the panel:"
+msgstr "En el panel:"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/ConfigGeneral.qml:36
+msgid "One donut per provider"
+msgstr "Una dona por proveedor"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/ConfigGeneral.qml:36
+msgid "Only the tightest one"
+msgstr "Solo el de menos margen"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/ConfigGeneral.qml:40
+msgid "Reset ring:"
+msgstr "Anillo de reinicio:"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/ConfigGeneral.qml:41
+msgid "Show the days until the next reset"
+msgstr "Mostrar los días hasta el próximo reinicio"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/ConfigGeneral.qml:48
+msgid "Amber warning below (%):"
+msgstr "Aviso ámbar bajo (%):"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/ConfigGeneral.qml:55
+msgid "Red alarm below (%):"
+msgstr "Alarma roja bajo (%):"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/ConfigGeneral.qml:66
+msgid ""
+"The refresh cadence is set by the ai-quota-monitor.timer unit, not by this "
+"dialog."
+msgstr ""
+"La frecuencia de actualización la fija el temporizador ai-quota-"
+"monitor.timer, no este diálogo."
+
+#: plasmoid/org.tatan.aiquota/contents/ui/FullRepresentation.qml:43
+msgctxt "%1 es una fecha y hora"
+msgid "updated %1"
+msgstr "actualizado %1"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/FullRepresentation.qml:44
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:446
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:578
+msgid "no data"
+msgstr "sin dato"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/FullRepresentation.qml:199
+msgid "Select a provider for details · arcs show quota remaining"
+msgstr "Selecciona un proveedor · los arcos muestran cuota disponible"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/components/QuotaTooltip.qml:76
+msgid "Click for all providers · white marks count days to reset"
+msgstr "Clic para ver todos · las marcas blancas cuentan días al reinicio"
+
+#. El texto queda disponible para lectores de pantalla; la presentación visual usa
+#. toolTipItem y nunca inicia I/O adicional al pasar el cursor.
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:95
+msgid "AI Quota HUD — quota, activity and balance"
+msgstr "AI Quota HUD — cuota, actividad y saldo"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:114
+msgctxt "%1 es el mensaje de error del parser"
+msgid "invalid JSON: %1"
+msgstr "JSON inválido: %1"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:118
+msgctxt "%1 es el mensaje de error al leer el fichero"
+msgid "unreadable cache: %1"
+msgstr "caché ilegible: %1"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:135
+msgid "systemd rate-limited the collector; wait a few minutes"
+msgstr "systemd limitó los arranques; espera unos minutos"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:140
+msgctxt "%1 es un codigo de salida"
+msgid "systemctl exited %1"
+msgstr "systemctl salió %1"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:170
+msgctxt "%1 es cuantos refrescos manuales permite la ventana"
+msgid "%1 manual refresh already requested in the last 10 minutes"
+msgid_plural "%1 manual refreshes already requested in the last 10 minutes"
+msgstr[0] "ya se pidió %1 refresco manual en los últimos 10 minutos"
+msgstr[1] "ya se pidieron %1 refrescos manuales en los últimos 10 minutos"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:190
+msgctxt "el botón espera antes de poder pulsarse otra vez"
+msgid "⟳ wait"
+msgstr "⟳ espera"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:191
+msgctxt "systemd limitó los arranques"
+msgid "⚠ limited"
+msgstr "⚠ limitado"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:193
+msgctxt "botón que arranca el colector"
+msgid "⟳ refresh"
+msgstr "⟳ refresco"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:251
+msgctxt "cuenta atrás en horas y minutos"
+msgid "in %1h %2m"
+msgstr "en %1h %2m"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:255
+msgctxt "cuenta atrás en días y horas"
+msgid "in %1d %2h"
+msgstr "en %1d %2h"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:262
+msgid "today"
+msgstr "hoy"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:263
+msgid "tomorrow"
+msgstr "mañana"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:272
+msgid "no renewal"
+msgstr "sin renovación"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:277
+msgid "local cutoff pending"
+msgstr "corte local pendiente"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:277
+msgid "renewal pending"
+msgstr "renovación pendiente"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:281
+msgctxt "%1 es un día y una hora, %2 una cuenta atrás"
+msgid "observed reset %1 · %2"
+msgstr "reinicio observado %1 · %2"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:283
+msgctxt "%1 es un día y una hora, %2 una cuenta atrás"
+msgid "local cutoff %1 · %2"
+msgstr "corte local %1 · %2"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:286
+msgctxt "%1 es un día y una hora, %2 una cuenta atrás"
+msgid "renews %1 · %2"
+msgstr "renueva %1 · %2"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:307
+msgctxt "antigüedad en minutos"
+msgid "%1m ago"
+msgstr "hace %1m"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:308
+msgctxt "antigüedad en horas"
+msgid "%1h ago"
+msgstr "hace %1h"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:321
+msgctxt "dato preservado de caché y su antigüedad"
+msgid "⚠ cached · %1"
+msgstr "⚠ caché · %1"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:323
+msgid "⚠ API balance not configured"
+msgstr "⚠ saldo API no configurado"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:326
+msgid "⚠ no compatible local log"
+msgstr "⚠ sin registro local compatible"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:327
+msgid "⚠ Antigravity quota unavailable"
+msgstr "⚠ cuota Antigravity no consultable"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:329
+msgid "⚠ no live data"
+msgstr "⚠ sin datos en vivo"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:430
+msgctxt "%1 es el nombre de una ventana de cuota, %2 una cuenta atrás"
+msgid "next reset: %1 · %2"
+msgstr "próximo reinicio: %1 · %2"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:449
+#, javascript-format
+msgctxt "porcentaje de cuota que queda libre"
+msgid "%1% free"
+msgstr "%1% libre"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:457
+msgctxt "abreviatura de solicitudes"
+msgid "%1 req."
+msgstr "%1 solic."
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:458
+msgctxt "abreviatura de tokens"
+msgid "%1 tok"
+msgstr "%1 tok"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:459
+msgctxt "abreviatura de créditos"
+msgid "%1 cred."
+msgstr "%1 créd."
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:477
+msgctxt "etiqueta corta: dato oficial del proveedor"
+msgid "OFFICIAL"
+msgstr "OFICIAL"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:478
+msgctxt "etiqueta corta: observado en local"
+msgid "LOCAL"
+msgstr "LOCAL"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:479
+msgctxt "etiqueta corta: estimación configurada"
+msgid "EST."
+msgstr "EST."
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:481
+msgctxt "etiqueta corta: sin dato"
+msgid "NO DATA"
+msgstr "SIN DATO"
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:588
+msgid "No data — start the ai-quota-monitor.service unit"
+msgstr "Sin datos — arranca la unidad ai-quota-monitor.service"
+
+#~ msgid "Start the collector (ai-quota-monitor.service)"
+#~ msgstr "Arranca el colector (ai-quota-monitor.service)"
+
+#~ msgid "Refresh in progress or cooling down"
+#~ msgstr "Refresco en curso o en espera"
+
+#~ msgid "arc = % free · third white ring = days until reset · dotted = cached"
+#~ msgstr ""
+#~ "arco = % libre · tercer anillo blanco = días hasta reinicio · punteado = "
+#~ "caché"
+
+#~ msgid ""
+#~ "🌐 the collector used the network · 💾 the widget only reads the cache"
+#~ msgstr "🌐 el colector usó la red · 💾 el widget solo lee la caché"
+
+#~ msgid "💾 local cache only"
+#~ msgstr "💾 solo caché local"
+
+#~ msgctxt "subtítulo del tooltip"
+#~ msgid "QUOTA · ACTIVITY · BALANCE"
+#~ msgstr "CUOTA · ACTIVIDAD · SALDO"
+
+#~ msgid "◌ third white ring = days until the next reset · dotted = cached"
+#~ msgstr ""
+#~ "◌ tercer anillo blanco = días hasta el próximo reinicio · punteado = caché"

@@ -2,13 +2,13 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import org.kde.kirigami as Kirigami
+import "."
 
 // Dona de saldo: representa el % FALTANTE (remaining) como arco que se encoge al consumir.
 //   Modo doble (default): dos anillos concéntricos.
 //     innerFraction → ventana semanal/7d (anillo interno, color oscuro del proveedor)
 //     outerFraction → ventana 5h/sesión  (anillo externo, color claro del proveedor)
-//   Modo single (singleRing:true): un único anillo grueso usando outerFraction
-//     (para proveedores con una sola métrica: DeepSeek saldo, Gemini diario).
+//   Modo single (singleRing:true): un único anillo grueso usando outerFraction.
 // El arco arranca arriba (−90°) en sentido horario; su longitud = fraction·360°.
 //   fraction == 1 → anillo completo (0% usado, todo libre).
 //   0 < fraction < 1 → arco parcial.
@@ -21,22 +21,39 @@ Item {
     property real innerFraction: -1
     property bool singleRing: false
     property bool stale: false
+    // Mantiene la identidad legible para actividad o saldo sin porcentaje.
+    property bool hasAuxiliaryData: false
     property string label: ""           // glifo del proveedor (fallback si no hay iconSource)
+    // QML `color` cannot use an empty string as a sentinel: Plasma 6 rejects
+    // the whole component before the HUD can load. Keep an explicit nullable
+    // value instead; consumers may still assign a concrete provider color.
+    property var centerGlyphColor: null
     property string centerText: ""      // valor grande al centro (ej. "82%"); vacío = ícono/glifo
+    property color centerTextColor: _healthColor
     property url iconSource: ""          // logo del proveedor (PNG/SVG); tiene prioridad sobre label
     property bool iconIsMask: false      // true = recolorear (SVG monocromo); false = color original
-    property color iconMaskColor: "#e6ecff"
-    property real iconScale: 0.50         // tamaño del ícono como fracción del diámetro
-    property string iconFontFamily: "Symbols Nerd Font"
+    property color iconMaskColor: HudPalette.text
+    property real iconScale: 0.90         // fracción del cuadrado inscrito en el hueco central
+    property string iconFontFamily: HudPalette.glyphFont
     // Identidad de proveedor en dos tonos: interno oscuro / externo claro.
-    property color innerColor: "#1a39ff"
-    property color outerColor: "#36c8ff"
-    property color trackColor: "#23233a"
+    property color innerColor: HudPalette.fallbackAccent
+    property color outerColor: HudPalette.accent
+    property color trackColor: HudPalette.track
+    // Tercer anillo temporal independiente del porcentaje. Cada segmento blanco
+    // representa un día hasta el próximo reinicio de cuota (máximo siete).
+    // Los umbrales de salud vienen de la configuracion del plasmoide; estaban
+    // fijos en 0.30 y 0.10 dentro del calculo del color.
+    property real amberThreshold: 0.30
+    property real redThreshold: 0.10
+    property bool showResetRing: true
+    property int resetDaysRemaining: -1
+    property int resetSegmentCount: 7
+    property color resetSegmentColor: HudPalette.text
 
-    implicitWidth: 24
-    implicitHeight: 24
+    implicitWidth: Kirigami.Units.iconSizes.smallMedium
+    implicitHeight: Kirigami.Units.iconSizes.smallMedium
 
-    readonly property bool hasData: outerFraction >= 0 || (!singleRing && innerFraction >= 0)
+    readonly property bool hasData: outerFraction >= 0 || (!singleRing && innerFraction >= 0) || hasAuxiliaryData
 
     // Peor fracción libre visible (la más crítica) → color semántico de salud.
     readonly property real _minFrac: {
@@ -47,18 +64,37 @@ Item {
     }
     // Verde/blanco = holgado · ámbar ≤30% · rojo ≤10% · gris = sin datos.
     readonly property color _healthColor: {
-        if (_minFrac < 0) return "#666688"
-        if (_minFrac <= 0.10) return "#ff5555"
-        if (_minFrac <= 0.30) return "#ffaa00"
-        return "#e6ecff"
+        if (_minFrac < 0) return HudPalette.noData
+        if (_minFrac <= gauge.redThreshold) return HudPalette.danger
+        if (_minFrac <= gauge.amberThreshold) return HudPalette.warning
+        return HudPalette.text
     }
 
-    onOuterFractionChanged: canvas.requestPaint()
-    onInnerFractionChanged: canvas.requestPaint()
-    onSingleRingChanged: canvas.requestPaint()
-    onStaleChanged: canvas.requestPaint()
-    onInnerColorChanged: canvas.requestPaint()
-    onOuterColorChanged: canvas.requestPaint()
+    // One geometry for the painted rings and the content aperture. Icons are
+    // fitted in the inscribed square, so even their corners cannot touch a ring.
+    readonly property real diameter: Math.min(width, height)
+    readonly property bool hasResetRing: showResetRing && resetDaysRemaining >= 0
+    readonly property real resetWidth: Math.max(1, diameter * 0.03)
+    readonly property real ringWidth: Math.max(1.2, diameter * 0.055)
+    readonly property real ringGap: Math.max(1, diameter * 0.035)
+    readonly property real outerRadius: diameter / 2 - 1 - ringWidth / 2
+        - (hasResetRing ? resetWidth + ringGap : 0)
+    readonly property real innerRadius: outerRadius - ringWidth - ringGap
+    readonly property real apertureRadius: Math.max(0,
+        (singleRing ? outerRadius : innerRadius) - ringWidth / 2 - 1)
+    readonly property real contentSize: apertureRadius * Math.SQRT2
+
+    // Una sola clave de repintado: el Canvas se redibuja cuando cambia algo que se ve,
+    // no cada vez que un binding se reevalua. Con nueve manejadores sueltos, releer la
+    // cache repintaba las quince donas aunque el JSON fuera identico.
+    readonly property string paintKey: [
+        gauge.outerFraction, gauge.innerFraction, gauge.singleRing, gauge.stale,
+        gauge.showResetRing, gauge.resetDaysRemaining, gauge.resetSegmentCount,
+        gauge.innerColor, gauge.outerColor, gauge.trackColor, gauge.resetSegmentColor,
+        gauge.width, gauge.height
+    ].join("|")
+
+    onPaintKeyChanged: canvas.requestPaint()
 
     function _drawRing(ctx, cx: real, cy: real, r: real, lw: real, frac: real, col: color): void {
         if (r <= 0)
@@ -72,7 +108,7 @@ Item {
         ctx.globalAlpha = 1.0
         ctx.stroke()
         // Arco de faltante (nada si frac < 0 = sin datos).
-        if (frac >= 0) {
+        if (frac > 0) {
             const start = -Math.PI / 2
             const end = start + Math.min(Math.max(frac, 0), 1) * 2 * Math.PI
             ctx.beginPath()
@@ -94,41 +130,67 @@ Item {
         }
     }
 
+    function _drawResetRing(ctx, cx: real, cy: real, r: real, lw: real): void {
+        if (!showResetRing || resetDaysRemaining < 0 || r <= 0 || resetSegmentCount <= 0)
+            return
+        const remaining = Math.min(Math.max(resetDaysRemaining, 0), resetSegmentCount)
+        const slice = (2 * Math.PI) / resetSegmentCount
+        const gap = Math.min(slice * 0.28, 0.12)
+        ctx.setLineDash([])
+        ctx.lineCap = "butt"
+        ctx.lineWidth = lw
+        for (let i = 0; i < resetSegmentCount; i++) {
+            const start = -Math.PI / 2 + i * slice + gap / 2
+            const end = -Math.PI / 2 + (i + 1) * slice - gap / 2
+            ctx.beginPath()
+            ctx.arc(cx, cy, r, start, end, false)
+            ctx.strokeStyle = i < remaining ? resetSegmentColor : HudPalette.trackSpent
+            ctx.globalAlpha = gauge.stale ? (i < remaining ? 0.55 : 0.40) : 1.0
+            ctx.stroke()
+        }
+        ctx.globalAlpha = 1.0
+    }
+
     Canvas {
         id: canvas
         anchors.fill: parent
         antialiasing: true
+        // Image rasteriza al device pixel ratio real. FramebufferObject no garantiza
+        // multimuestreo con escala fraccional en Wayland, y aqui todo son arcos.
+        renderTarget: Canvas.Image
+        renderStrategy: Canvas.Cooperative
 
         onPaint: {
             const ctx = getContext("2d")
             ctx.reset()
             const cx = width / 2
             const cy = height / 2
-            const maxR = Math.min(width, height) / 2
-            if (gauge.singleRing) {
-                const lw = Math.max(3, maxR * 0.26)
-                const r = maxR - lw / 2 - 1
-                gauge._drawRing(ctx, cx, cy, r, lw, gauge.outerFraction, gauge.outerColor)
-            } else {
-                const lw = Math.max(2, maxR * 0.20)
-                const rOuter = maxR - lw / 2 - 1
-                const rInner = rOuter - lw * 1.05
-                gauge._drawRing(ctx, cx, cy, rOuter, lw, gauge.outerFraction, gauge.outerColor)
-                gauge._drawRing(ctx, cx, cy, rInner, lw, gauge.innerFraction, gauge.innerColor)
-            }
+            if (gauge.hasResetRing)
+                gauge._drawResetRing(ctx, cx, cy,
+                    gauge.diameter / 2 - 1 - gauge.resetWidth / 2, gauge.resetWidth)
+            gauge._drawRing(ctx, cx, cy, gauge.outerRadius, gauge.ringWidth,
+                gauge.outerFraction, gauge.outerColor)
+            if (!gauge.singleRing)
+                gauge._drawRing(ctx, cx, cy, gauge.innerRadius, gauge.ringWidth,
+                    gauge.innerFraction, gauge.innerColor)
         }
     }
 
     // Centro, prioridad: número (popup) → logo del proveedor (compacto) → glifo (fallback).
     Text {
         visible: gauge.centerText !== ""
-        anchors.fill: parent
+        anchors.centerIn: parent
+        width: gauge.contentSize
+        height: width
+        fontSizeMode: Text.Fit
+        minimumPixelSize: 4
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         text: gauge.centerText
-        color: gauge._healthColor
+        color: gauge.centerTextColor
         // Conteo "robótico": Iosevka pesada, más chica que antes.
-        font.pixelSize: Math.max(10, gauge.height * 0.27)
+        // Relativo al diametro de la dona, con un piso en la letra pequena del tema.
+        font.pixelSize: Math.max(Kirigami.Units.gridUnit * 0.7, gauge.height * 0.27)
         font.weight: Font.Black
         font.family: "IosevkaTerm Nerd Font"
         font.letterSpacing: 0.5
@@ -138,7 +200,8 @@ Item {
     Kirigami.Icon {
         visible: gauge.centerText === "" && String(gauge.iconSource) !== ""
         anchors.centerIn: parent
-        width: Math.round(gauge.height * gauge.iconScale)
+        objectName: "providerIcon"
+        width: gauge.contentSize * Math.min(1, gauge.iconScale)
         height: width
         source: gauge.iconSource
         isMask: gauge.iconIsMask
@@ -149,13 +212,18 @@ Item {
 
     Text {
         visible: gauge.centerText === "" && String(gauge.iconSource) === ""
-        anchors.fill: parent
+        anchors.centerIn: parent
+        width: gauge.contentSize
+        height: width
+        fontSizeMode: Text.Fit
+        minimumPixelSize: 4
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         text: gauge.label
-        color: gauge.hasData ? (gauge._minFrac <= 0.30 ? gauge._healthColor : "#e6ecff") : "#555577"
+        color: gauge.centerGlyphColor !== null ? gauge.centerGlyphColor
+            : gauge.hasData ? (gauge._minFrac <= gauge.amberThreshold ? gauge._healthColor : HudPalette.text) : HudPalette.confidenceUnknown
         opacity: gauge.hasData ? 1.0 : 0.6
-        font.pixelSize: Math.max(9, gauge.height * 0.42)
+        font.pixelSize: Math.max(Kirigami.Units.gridUnit * 0.6, gauge.height * 0.42)
         font.family: gauge.iconFontFamily
         renderType: Text.NativeRendering
     }
@@ -163,12 +231,13 @@ Item {
     // Indicador de dato preservado (stale): punto tenue arriba a la derecha.
     Rectangle {
         visible: gauge.stale
-        width: Math.max(4, gauge.height * 0.10)
+        width: Math.max(Kirigami.Units.smallSpacing, gauge.height * 0.10)
         height: width
         radius: width / 2
-        color: "#ffaa44"
+        color: HudPalette.caution
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.margins: 1
     }
+
 }

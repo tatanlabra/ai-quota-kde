@@ -38,6 +38,8 @@ def test_codex_percent_windows(monkeypatch):
     assert sess.confidence == "official"
     assert "wham" in sess.source.lower() or "cli+cloud" in sess.source.lower()
     assert sess.reset_at is not None and sess.reset_at.endswith("Z")
+    assert sess.metric_kind == "quota" and sess.renewal_kind == "rolling"
+    assert week.cycle_days == 7
     assert "plus" in sess.note
 
 

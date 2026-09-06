@@ -82,7 +82,13 @@ def _iso_utc(epoch: Any) -> str | None:
         return None
 
 
-def _make_window(window_id: str, label: str, win: dict[str, Any] | None, now: int, source: str) -> ProviderWindow:
+def _make_window(
+    window_id: str,
+    label: str,
+    win: dict[str, Any] | None,
+    now: int,
+    source: str,
+) -> ProviderWindow:
     # win = {used_percent, reset_at} de primary (5h) o secondary (semana).
     if win and win.get("used_percent") is not None:
         used_pct = float(win["used_percent"])
@@ -100,6 +106,15 @@ def _make_window(window_id: str, label: str, win: dict[str, Any] | None, now: in
             unit="percent",
             percent=min(used_pct / 100.0, 1.0),
             reset_at=_iso_utc(reset_at),
+            metric_kind="quota",
+            renewal_kind="rolling" if _iso_utc(reset_at) else "unknown",
+            cycle_days=(
+                int(win["window_minutes"]) // DAY_MINUTES
+                if isinstance(win.get("window_minutes"), (int, float))
+                and int(win["window_minutes"]) % DAY_MINUTES == 0
+                and int(win["window_minutes"]) > DAY_MINUTES
+                else 7 if window_id == "weekly" and "(7d)" in label else None
+            ),
             confidence="official",
             source=source,
             note=note,
@@ -111,6 +126,8 @@ def _make_window(window_id: str, label: str, win: dict[str, Any] | None, now: in
         limit=None,
         unit="percent",
         percent=None,
+        metric_kind="quota",
+        renewal_kind="unknown",
         confidence="unknown",
         source="unavailable",
         note="uso no disponible",
@@ -168,6 +185,8 @@ def collect(cfg: dict) -> Provider:
                     limit=None,
                     unit="credits",
                     percent=None,
+                    metric_kind="balance",
+                    renewal_kind="none",
                     confidence="official",
                     source=src_label,
                     note="saldo agéntico",

@@ -10,16 +10,12 @@ from .security import atomic_write, ensure_dirs, restrict
 _DEFAULT_CONFIG = """\
 [general]
 timezone = "America/Santiago"
-refresh_seconds = 60
 network_enabled = false
 prefer_offline = true
 
-[ui]
-theme = "cyberpunk"
-show_costs = true
-show_tokens = true
-show_requests = true
-compact_panel_text = "worst-provider"
+# La presentacion se configura en el plasmoide (clic derecho -> Configurar), no aqui.
+# La seccion [ui] existio con claves que ningun codigo leia, y la cadencia nunca se
+# fijo desde este fichero: la fija ai-quota-monitor.timer. Ver OBSOLETE_KEYS.
 
 [providers.claude]
 enabled = true
@@ -52,17 +48,21 @@ reset_policy = "secondary_rolling"
 
 [providers.gemini]
 enabled = true
-label = "GEMINI"
-# Antigravity (agy) / Gemini CLI: conteo diario de requests desde logs locales (estimación).
-source = "gemini_logs"
+label = "ANTIGRAVITY / GEMINI"
+# Actividad local separada de Antigravity y Gemini CLI. No representa una cuota.
+source = "antigravity_gemini_logs"
 
-[providers.gemini.daily]
-limit_requests = 1000
-reset_policy = "daily_local_midnight"
+[providers.gemini.activity]
+cutoff_policy = "daily_local_midnight"
 
 [providers.gemini.ccusage]
 enabled = true
 allow_npx = false
+
+[providers.copilot]
+enabled = true
+label = "COPILOT"
+source = "copilot_session_quota_snapshots"
 
 [providers.deepseek]
 enabled = true
@@ -77,17 +77,44 @@ clp_per_usd = 950.0
 clp_per_cny = 132.0
 rates_checked_at = "2026-06-20"
 rates_source = "manual_config"
-# Techo de presupuesto en CLP: el anillo = saldo_actual / budget_clp.
-# 100% = budget_clp lleno; se descarga con el uso y vuelve a tope al recargar
-# (cap 100%). Poner 0 o quitar la linea para volver al high-water-mark automatico.
-budget_clp = 10000.0
+# Techo personal opcional en CLP. Es una estimación separada: saldo API × FX
+# configurado contra este presupuesto local. Por defecto está oculto; usa un valor
+# positivo para mostrarlo como métrica secundaria.
+budget_clp = 0.0
 """
 
+
+# Claves que existieron en config.toml y ya no lee nadie. Se declaran para que un
+# fichero viejo no aparente configurar algo: `refresh_seconds` nunca fijo la cadencia
+# (la fija el timer systemd) y toda la seccion [ui] se mudo a la config del plasmoide.
+OBSOLETE_KEYS: tuple[tuple[str, str, str], ...] = (
+    ("general", "refresh_seconds", "la cadencia la fija ai-quota-monitor.timer"),
+    ("ui", "theme", "la presentacion se configura en el plasmoide"),
+    ("ui", "show_costs", "la presentacion se configura en el plasmoide"),
+    ("ui", "show_tokens", "la presentacion se configura en el plasmoide"),
+    ("ui", "show_requests", "la presentacion se configura en el plasmoide"),
+    ("ui", "compact_panel_text", "ahora es la opcion 'modo compacto' del plasmoide"),
+)
+
+
+def obsolete_keys_present(cfg: dict[str, Any]) -> list[str]:
+    """Claves presentes en el config del usuario que ya no tienen consumidor."""
+    found = []
+    for section, key, why in OBSOLETE_KEYS:
+        if isinstance(cfg.get(section), dict) and key in cfg[section]:
+            found.append(f"[{section}] {key} — {why}")
+    return found
 
 def load() -> dict[str, Any]:
     if not CONFIG_TOML.exists():
         return tomllib.loads(_DEFAULT_CONFIG)
-    return tomllib.loads(CONFIG_TOML.read_text(encoding="utf-8"))
+    cfg = tomllib.loads(CONFIG_TOML.read_text(encoding="utf-8"))
+    # Habilitar proveedores nuevos en configuraciones antiguas sin reescribirlas.
+    cfg.setdefault("providers", {}).setdefault(
+        "copilot",
+        {"enabled": True, "label": "COPILOT", "source": "copilot_session_quota_snapshots"},
+    )
+    return cfg
 
 
 def init_config(force: bool = False) -> bool:

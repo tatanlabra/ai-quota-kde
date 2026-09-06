@@ -3,9 +3,9 @@
     "KPlugin": {
         "Id": "org.tatan.aiquota",
         "Name": "AI Quota HUD",
-        "Description": "Monitor local de uso de Claude Code, Codex y Gemini CLI",
+        "Description": "Local-first HUD for Claude Code, Codex, Antigravity/Gemini, Copilot CLI and DeepSeek quotas",
         "Icon": "utilities-system-monitor",
-        "Version": "0.2.0",
+        "Version": "0.3.0",
         "License": "MIT",
         "Authors": [{"Name": "tatán"}],
         "Category": "System Information"

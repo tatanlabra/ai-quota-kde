@@ -66,6 +66,10 @@ if ((SKIP_PLASMOID)); then
 elif ! command -v kpackagetool6 >/dev/null 2>&1; then
   echo "  kpackagetool6 no está disponible; se omite el plasmoide" >&2
 else
+  # El .mo tiene que estar compilado ANTES de empaquetar: kpackagetool6 copia el
+  # arbol tal cual, asi que un catalogo viejo se instala igual de silenciosamente.
+  bash "$PROJECT_DIR/scripts/build_locale.sh"
+
   PLASMOID_DIR="$PROJECT_DIR/plasmoid/org.tatan.aiquota"
   if kpackagetool6 -t Plasma/Applet -l 2>/dev/null | grep -q "org.tatan.aiquota"; then
     kpackagetool6 -t Plasma/Applet -u "$PLASMOID_DIR"

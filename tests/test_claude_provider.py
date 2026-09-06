@@ -21,6 +21,9 @@ def test_oauth_ok_populates_official_percent(monkeypatch):
     s = _win(p, "session")
     assert s.percent == 0.18
     assert s.confidence == "official"
+    assert s.metric_kind == "quota"
+    assert s.renewal_kind == "rolling"
+    assert _win(p, "weekly").cycle_days == 7
 
 
 def test_ccusage_fallback_keeps_local_count_when_token_dies(monkeypatch):

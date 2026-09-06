@@ -2,6 +2,14 @@
 Description=Refresh AI quota monitor cache
 After=network-online.target
 Wants=network-online.target
+# Compuerta anti-429 que el widget no puede saltarse, porque la aplica systemd y
+# no la interfaz. El timer aporta hasta 2 arranques por ventana de 600 s
+# (OnUnitActiveSec=300 se re-basa con cada arranque, incluido uno manual), asi que
+# Burst=4 deja 2 manuales. El plasmoide se autolimita a esos 2: si alguien gastara
+# mas, el siguiente arranque del timer saldria rechazado, la unidad quedaria en
+# failed y dispararia la alerta de OnFailure.
+StartLimitIntervalSec=600
+StartLimitBurst=4
 
 [Service]
 Type=oneshot

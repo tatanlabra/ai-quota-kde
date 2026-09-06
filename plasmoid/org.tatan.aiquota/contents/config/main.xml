@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0
+                          http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+    <kcfgfile name=""/>
+    <group name="General">
+        <entry name="showClaude" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="showCodex" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="showGemini" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="showCopilot" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="showDeepseek" type="Bool">
+            <default>true</default>
+        </entry>
+        <!-- Porcentaje libre por debajo del cual el anillo pasa a ambar y a rojo. -->
+        <entry name="amberThreshold" type="Int">
+            <default>30</default>
+        </entry>
+        <entry name="redThreshold" type="Int">
+            <default>10</default>
+        </entry>
+        <!-- 0 = una dona por proveedor · 1 = solo el proveedor con menos margen. -->
+        <entry name="compactMode" type="Int">
+            <default>0</default>
+        </entry>
+        <entry name="showResetRing" type="Bool">
+            <default>true</default>
+        </entry>
+    </group>
+</kcfg>

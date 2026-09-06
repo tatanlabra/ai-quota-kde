@@ -2,293 +2,204 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Window
+import QtQuick.Controls as QQC2
 import org.kde.kirigami as Kirigami
+import org.kde.plasma.components as PlasmaComponents
+import org.kde.plasma.extras as PlasmaExtras
 import "components"
 
-// Popup de detalle: Claude · Codex · Gemini · DeepSeek, dona doble + % libre + presupuesto.
-Item {
+PlasmaExtras.Representation {
     id: full
     required property var plasmoidItem
     readonly property var pi: full.plasmoidItem
+    readonly property string activeProvider: pi.visibleProviders.indexOf(pi.selectedProvider) >= 0
+        ? pi.selectedProvider : (pi.visibleProviders[0] || "claude")
+    implicitWidth: Kirigami.Units.gridUnit * 36
+    Layout.minimumWidth: Math.min(Kirigami.Units.gridUnit * 24, Screen.width * 0.9)
+    Layout.preferredWidth: Kirigami.Units.gridUnit * 36
+    Layout.maximumWidth: Screen.width * 0.95
+    Layout.minimumHeight: Math.min(Kirigami.Units.gridUnit * 24, Screen.height * 0.8)
+    Layout.preferredHeight: Kirigami.Units.gridUnit * 29
+    Layout.maximumHeight: Screen.height * 0.9
+    collapseMarginsHint: true
+    background: Rectangle { color: HudPalette.bg; radius: Kirigami.Units.cornerRadius }
 
-    implicitWidth: 620
-    implicitHeight: mainCol.implicitHeight + 24
-
-    Rectangle {
-        anchors.fill: parent
-        color: "#08080f"
-        radius: 8
-    }
-
-    ColumnLayout {
-        id: mainCol
-        anchors { fill: parent; margins: 12 }
-        spacing: 10
-
-        // ── Header ───────────────────────────────────────────────────────────
-        RowLayout {
-            Layout.fillWidth: true
+    header: PlasmaExtras.PlasmoidHeading {
+        contentItem: RowLayout {
+            spacing: Kirigami.Units.largeSpacing
             Text {
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
                 text: "AI QUOTA HUD"
-                color: "#36c8ff"
-                font.pixelSize: 14
-                font.bold: true
-                font.family: "IosevkaTerm Nerd Font"
-                font.letterSpacing: 3
+                color: HudPalette.text
+                font.family: HudPalette.display
+                font.pointSize: HudPalette.fs(1.05)
+                elide: Text.ElideRight
             }
-            Item { Layout.fillWidth: true }
             Text {
+                Layout.maximumWidth: full.width * 0.35
                 text: full.pi.report && full.pi.report.generated_at
-                    ? full.pi.report.generated_at.substring(11, 16) + " local"
-                    : "sin datos"
-                color: "#444466"
-                font.pixelSize: 9
-                font.family: "IosevkaTerm Nerd Font"
+                    ? i18nc("%1 es una fecha y hora", "updated %1", full.pi.localTimeText(full.pi.report.generated_at))
+                    : i18n("no data")
+                color: HudPalette.muted
+                font.pointSize: HudPalette.fs(0.85)
+                elide: Text.ElideRight
+            }
+            PlasmaComponents.ToolButton {
+                icon.name: "view-refresh"
+                enabled: full.pi.canRefresh
+                text: full.pi.refreshButtonText()
+                display: PlasmaComponents.AbstractButton.IconOnly
+                onClicked: full.pi.requestManualRefresh()
+                PlasmaComponents.ToolTip.visible: hovered
+                PlasmaComponents.ToolTip.text: full.pi.refreshHint || text
             }
         }
+    }
 
-        Text {
-            Layout.fillWidth: true
-            text: "arco = % libre  ·  doble = 2 ventanas (externo = 1ª)  ·  simple = ventana única  ·  punteado = caché"
-            color: "#6a6a8c"
-            font.pixelSize: 10
-            font.family: "IosevkaTerm Nerd Font"
-        }
-
-        // ── Error banner ─────────────────────────────────────────────────────
-        Rectangle {
-            visible: full.pi.lastError !== ""
-            Layout.fillWidth: true
-            height: 24
-            color: "#220000"
-            radius: 4
-            Text {
-                anchors.centerIn: parent
-                text: "⚠ " + full.pi.lastError
-                color: "#ff4444"
-                font.pixelSize: 10
-                font.family: "IosevkaTerm Nerd Font"
-            }
-        }
-
-        // ── Columnas: Claude · Codex · Gemini · DeepSeek ─────────────────────
+    contentItem: ColumnLayout {
+        spacing: Kirigami.Units.largeSpacing
+        // Overview stays visible while only the selected provider's details scroll.
         RowLayout {
+            id: overview
             Layout.fillWidth: true
-            spacing: 12
-
-            ProviderColumn {
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignTop
-                pi: full.pi; keyId: "claude"; title: "CLAUDE"; glyph: "\uf069"
-                iconSource: Qt.resolvedUrl("../icons/claude.svg")
-                iconIsMask: true; iconMaskColor: "#e6ecff"
-                innerCol: "#b23c0e"; outerCol: "#ff7518"
-            }
-            ProviderColumn {
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignTop
-                pi: full.pi; keyId: "codex"; title: "CODEX"; glyph: "\uf0e8"
-                iconSource: Qt.resolvedUrl("../icons/codex.png")
-                innerCol: "#0b9e3a"; outerCol: "#57ff8d"
-            }
-            ProviderColumn {
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignTop
-                pi: full.pi; keyId: "gemini"; title: "GEMINI"; glyph: "\uf005"
-                iconSource: Qt.resolvedUrl("../icons/gemini_blue.png")
-                innerCol: "#0b39c4"; outerCol: "#2f80ff"
-            }
-            ProviderColumn {
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignTop
-                pi: full.pi; keyId: "deepseek"; title: "DEEPSEEK"; glyph: "\uf06e"
-                iconSource: Qt.resolvedUrl("../icons/deepseek.svg")
-                iconIsMask: true; iconMaskColor: "#fff36d"
-                innerCol: "#9b7c00"; outerCol: "#fff36d"
+            Layout.leftMargin: Kirigami.Units.largeSpacing
+            Layout.rightMargin: Kirigami.Units.largeSpacing
+            Layout.topMargin: Kirigami.Units.largeSpacing
+            spacing: Kirigami.Units.smallSpacing
+            Repeater {
+                model: full.pi.visibleProviders
+                delegate: PlasmaComponents.Button {
+                    id: choice
+                    required property string modelData
+                    objectName: "select-" + modelData
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                    Layout.preferredWidth: 0
+                    readonly property bool selected: full.activeProvider === modelData
+                    Accessible.name: full.pi.providerDisplayName(modelData)
+                    onClicked: full.pi.selectedProvider = modelData
+                    padding: Kirigami.Units.smallSpacing
+                    background: Rectangle {
+                        color: choice.selected || choice.hovered ? HudPalette.panel : HudPalette.bg
+                        radius: Kirigami.Units.cornerRadius
+                        border.color: choice.selected || choice.activeFocus
+                            ? HudPalette.accentOf(choice.modelData) : HudPalette.border
+                        border.width: 1
+                    }
+                    contentItem: ColumnLayout {
+                        spacing: Kirigami.Units.smallSpacing
+                        ProviderGauge {
+                            Layout.alignment: Qt.AlignHCenter
+                            implicitWidth: Kirigami.Units.gridUnit * 2.6
+                            implicitHeight: implicitWidth
+                            pi: full.pi
+                            providerKey: choice.modelData
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            text: HudPalette.shortName(choice.modelData)
+                            horizontalAlignment: Text.AlignHCenter
+                            font.pointSize: HudPalette.fs(0.9)
+                            color: choice.selected ? HudPalette.accentOf(choice.modelData) : HudPalette.text
+                            elide: Text.ElideRight
+                        }
+                        Text {
+                            Layout.fillWidth: true
+                            Layout.minimumWidth: 0
+                            text: full.pi.donutCenterText(choice.modelData, full.pi.gaugeWindows(choice.modelData)) || "—"
+                            horizontalAlignment: Text.AlignHCenter
+                            font.pointSize: HudPalette.fs(1.05)
+                            font.family: HudPalette.mono
+                            font.bold: true
+                            color: full.pi.donutCenterColor(choice.modelData, full.pi.gaugeWindows(choice.modelData))
+                            elide: Text.ElideRight
+                        }
+                    }
+                }
             }
         }
 
-        // ── Warnings ─────────────────────────────────────────────────────────
-        Repeater {
-            model: full.pi.report ? (full.pi.report.warnings || []) : []
-            delegate: Text {
-                required property string modelData
-                Layout.fillWidth: true
-                text: "⚠ " + modelData
-                color: "#ffaa44"
-                font.pixelSize: 9
-                font.family: "IosevkaTerm Nerd Font"
-                wrapMode: Text.WordWrap
-            }
-        }
-
-        // ── Footer: fuente + refresh ─────────────────────────────────────────
-        RowLayout {
+        PlasmaComponents.ScrollView {
+            id: details
             Layout.fillWidth: true
-            Text {
-                text: full.pi.report && full.pi.report.network_used ? "🌐 en vivo · 💾 local" : "💾 local"
-                color: "#444466"
-                font.pixelSize: 9
-                font.family: "IosevkaTerm Nerd Font"
-            }
-            Item { Layout.fillWidth: true }
-            Rectangle {
-                width: 84; height: 22
-                color: refreshArea.containsMouse ? "#1a2a3a" : "#0d1a27"
-                radius: 4
-                border.color: "#36c8ff"
-                border.width: 1
+            Layout.fillHeight: true
+            contentWidth: availableWidth
+            QQC2.ScrollBar.horizontal.policy: QQC2.ScrollBar.AlwaysOff
+            ColumnLayout {
+                width: details.availableWidth
+                spacing: Kirigami.Units.largeSpacing
                 Text {
-                    anchors.centerIn: parent
-                    text: full.pi.busy ? "⟳ …" : "⟳ refresh"
-                    color: "#36c8ff"
-                    font.pixelSize: 10
-                    font.family: "IosevkaTerm Nerd Font"
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                    Layout.leftMargin: Kirigami.Units.largeSpacing
+                    Layout.rightMargin: Kirigami.Units.largeSpacing
+                    text: full.pi.providerDisplayName(full.activeProvider)
+                    wrapMode: Text.Wrap
+                    color: HudPalette.accentOf(full.activeProvider)
+                    font.family: HudPalette.displaySoft
+                    font.pointSize: HudPalette.fs(1.05)
                 }
-                MouseArea {
-                    id: refreshArea
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    onClicked: full.pi.triggerRefresh()
+                Text {
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                    Layout.leftMargin: Kirigami.Units.largeSpacing
+                    Layout.rightMargin: Kirigami.Units.largeSpacing
+                    visible: text !== ""
+                    text: full.pi.providerStatusText(full.activeProvider)
+                    wrapMode: Text.Wrap
+                    color: HudPalette.caution
+                    font.pointSize: HudPalette.fs(0.95)
+                }
+                Repeater {
+                    model: full.pi.detailWindows(full.activeProvider)
+                    delegate: MetricLine {
+                        required property string modelData
+                        Layout.leftMargin: Kirigami.Units.largeSpacing
+                        Layout.rightMargin: Kirigami.Units.largeSpacing
+                        pi: full.pi
+                        providerKey: full.activeProvider
+                        windowId: modelData
+                        accent: HudPalette.accentOf(full.activeProvider)
+                        showSource: true
+                    }
+                }
+                Text {
+                    Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                    Layout.leftMargin: Kirigami.Units.largeSpacing
+                    Layout.rightMargin: Kirigami.Units.largeSpacing
+                    visible: text !== ""
+                    text: full.pi.lastError
+                    wrapMode: Text.Wrap
+                    color: HudPalette.errorText
+                    font.pointSize: HudPalette.fs(0.9)
+                }
+                Repeater {
+                    model: full.pi.report ? (full.pi.report.warnings || []) : []
+                    delegate: Text {
+                        required property string modelData
+                        Layout.fillWidth: true
+                        Layout.minimumWidth: 0
+                        Layout.leftMargin: Kirigami.Units.largeSpacing
+                        Layout.rightMargin: Kirigami.Units.largeSpacing
+                        text: "⚠ " + modelData
+                        wrapMode: Text.Wrap
+                        color: HudPalette.caution
+                        font.pointSize: HudPalette.fs(0.9)
+                    }
                 }
             }
         }
     }
-
-    // ── Columna de proveedor (dona doble + detalle + presupuesto) ────────────
-    component ProviderColumn: ColumnLayout {
-        id: pc
-        required property var pi
-        required property string keyId
-        required property string title
-        required property string glyph
-        required property color innerCol
-        required property color outerCol
-        property url iconSource: ""
-        property bool iconIsMask: false
-        property color iconMaskColor: "#e6ecff"
-
-        spacing: 7
-
-        // Ventanas que el proveedor expone de verdad: 2 → dona doble, 1 → anillo único.
-        // Se leen del reporte, así que un cambio de esquema upstream (p.ej. Codex, que
-        // dejó de exponer la ventana de 5h) se refleja solo, sin editar el QML.
-        readonly property var gauges: pc.pi.gaugeWindows(pc.keyId)
-
-        DonutGauge {
-            Layout.alignment: Qt.AlignHCenter
-            Layout.bottomMargin: 2
-            implicitWidth: 92
-            implicitHeight: 92
-            label: pc.glyph
-            singleRing: pc.pi.gaugeSingleRing(pc.keyId)
-            stale: pc.pi.providerStale(pc.keyId)
-            iconSource: pc.iconSource
-            iconIsMask: pc.iconIsMask
-            iconMaskColor: pc.iconMaskColor
-            innerColor: pc.innerCol
-            outerColor: pc.outerCol
-            outerFraction: pc.pi.gaugeOuterFraction(pc.keyId)
-            innerFraction: pc.pi.gaugeInnerFraction(pc.keyId)
-            centerText: pc.pi.donutCenterText(pc.keyId, pc.gauges)
-        }
-
-        // Nombre del proveedor con su logo oficial al lado.
-        RowLayout {
-            Layout.alignment: Qt.AlignHCenter
-            spacing: 5
-            Kirigami.Icon {
-                implicitWidth: 15
-                implicitHeight: 15
-                source: pc.iconSource
-                isMask: pc.iconIsMask
-                color: pc.iconMaskColor
-                visible: String(pc.iconSource) !== ""
-                smooth: true
-            }
-            Text {
-                text: pc.title
-                color: pc.outerCol
-                font.pixelSize: 12
-                font.bold: true
-                font.family: "IosevkaTerm Nerd Font"
-                font.letterSpacing: 2
-            }
-        }
-
-        // Estado: caché preservada (stale) o sin datos en vivo.
-        Text {
-            readonly property string st: pc.pi.providerStatusText(pc.keyId)
-            Layout.alignment: Qt.AlignHCenter
-            visible: st !== ""
-            text: st
-            color: "#ffaa44"
-            font.pixelSize: 9
-            font.family: "IosevkaTerm Nerd Font"
-        }
-
-        // Ventanas: una línea por ventana expuesta, rotulada con su duración real.
-        Repeater {
-            model: pc.gauges
-            delegate: WindowLine {
-                required property string modelData
-                pi: pc.pi
-                keyId: pc.keyId
-                windowId: modelData
-                name: pc.pi.windowShortName(pc.keyId, modelData)
-            }
-        }
-
-        // Presupuesto extra: créditos, USD o saldo CLP.
-        Text {
-            readonly property string extra: pc.pi.extraInfoText(pc.keyId)
-            Layout.alignment: Qt.AlignHCenter
-            visible: extra !== ""
-            text: extra
-            color: "#8888aa"
-            font.pixelSize: 10
-            font.family: "IosevkaTerm Nerd Font"
-        }
-    }
-
-    // ── Línea de ventana: "5h    82% libre · reset 19:00 UTC" ─────────────────
-    component WindowLine: RowLayout {
-        id: wl
-        required property var pi
-        required property string keyId
-        required property string windowId
-        required property string name
-
-        readonly property real frac: wl.pi.remainingFraction(wl.keyId, wl.windowId)
-        readonly property color tone: {
-            if (wl.frac < 0) return "#555577"
-            if (wl.frac <= 0.10) return "#ff4444"
-            if (wl.frac <= 0.30) return "#ffaa00"
-            return "#aaccdd"
-        }
-
-        Layout.fillWidth: true
-        spacing: 6
-
-        Text {
-            text: wl.name
-            color: "#8888aa"
-            font.pixelSize: 10
-            font.family: "IosevkaTerm Nerd Font"
-        }
-        Text {
-            text: wl.frac < 0 ? wl.pi.extraInfoText(wl.keyId) : wl.pi.remainingText(wl.keyId, wl.windowId) + " libre"
-            color: wl.tone
-            font.pixelSize: 11
-            font.bold: true
-            font.family: "IosevkaTerm Nerd Font"
-        }
-        Item { Layout.fillWidth: true }
-        Text {
-            text: wl.pi.resetText(wl.keyId, wl.windowId)
-            color: "#555577"
-            font.pixelSize: 9
-            font.family: "IosevkaTerm Nerd Font"
+    footer: PlasmaExtras.PlasmoidHeading {
+        contentItem: Text {
+            text: i18n("Select a provider for details · arcs show quota remaining")
+            color: HudPalette.muted
+            font.pointSize: HudPalette.fs(0.85)
+            wrapMode: Text.Wrap
         }
     }
 }

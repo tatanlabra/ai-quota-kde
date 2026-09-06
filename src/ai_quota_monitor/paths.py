@@ -27,3 +27,6 @@ DEEPSEEK_ENV_FILE = CONFIG_DIR / "secrets.env"
 # Gemini / Antigravity (agy) — uso local (conteo diario de requests)
 GEMINI_DIR = HOME / ".gemini"
 ANTIGRAVITY_DIR = HOME / ".local" / "share" / "antigravity"
+
+# GitHub Copilot CLI — snapshots locales de cuota incluidos en eventos de respuestas.
+COPILOT_SESSIONS_DIR = HOME / ".copilot" / "session-state"

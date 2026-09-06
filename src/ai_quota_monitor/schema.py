@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 
 
 Confidence = Literal["official", "local_observed", "configured_estimate", "unknown"]
+MetricKind = Literal["quota", "activity", "balance"]
+RenewalKind = Literal["rolling", "calendar_cutoff", "none", "unknown"]
 
 
 class ProviderWindow(BaseModel):
@@ -17,6 +19,11 @@ class ProviderWindow(BaseModel):
     unit: str  # tokens | usd_estimated | requests
     percent: float | None = None  # 0.0-1.0; None = no limit configured
     reset_at: str | None = None
+    # Semántica explícita para que UI y consumidores no confundan cuota, actividad
+    # observada y saldo. Los defaults mantienen compatibilidad con snapshots viejos.
+    metric_kind: MetricKind = "quota"
+    renewal_kind: RenewalKind = "unknown"
+    cycle_days: int | None = None
     confidence: Confidence = "unknown"
     source: str = "unknown"
     note: str = ""
