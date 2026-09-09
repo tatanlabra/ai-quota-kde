@@ -139,3 +139,33 @@ def test_catalogue_source_references_are_relative():
         assert references, catalogue
         assert all(not Path(ref.rsplit(':', 1)[0]).is_absolute()
                    for line in references for ref in line.split()), catalogue
+
+
+def test_dates_are_formatted_through_the_desktop_locale():
+    """Qt.formatDate con un formato de texto ignora el locale y rinde en ingles.
+
+    Es la trampa que dejo el widget medio traducido sin que ningun gate lo notara: los
+    porcentajes y las etiquetas salian en espanol y las fechas en ingles, porque
+    Qt.formatDate(d, "ddd d MMM") usa el locale C. Medido con QLocale("es_CL") sobre la
+    misma fecha: `Qt.formatDate` devuelve "Sat 12 Sep" y `toLocaleDateString(Qt.locale(),
+    ...)` devuelve "sab 12 sept".
+
+    falsified_by: 2026-09-08. Reponiendo cualquiera de las dos llamadas originales de
+    main.qml --lineas 244 y 264 antes del arreglo-- este test falla. Se observo primero
+    en una captura para el post, con el resto de la interfaz ya en espanol.
+    """
+    offenders = {}
+    for path in qml_files():
+        text = path.read_text(encoding="utf-8")
+        for number, line in enumerate(text.splitlines(), 1):
+            code = line.split("//")[0]
+            # Con un enum Locale.ShortFormat si respeta el locale; el problema es el
+            # formato escrito a mano.
+            if re.search(r'Qt\.format(?:Date|DateTime)\s*\([^)]*"', code):
+                offenders.setdefault(path.name, []).append(f"{number}: {code.strip()[:70]}")
+    assert offenders == {}, offenders
+
+    # Y la via correcta esta en uso, para que el test no pase por ausencia de fechas.
+    main = (UI / "main.qml").read_text(encoding="utf-8")
+    assert "toLocaleDateString(Qt.locale()" in main
+    assert "toLocaleTimeString(Qt.locale()" in main

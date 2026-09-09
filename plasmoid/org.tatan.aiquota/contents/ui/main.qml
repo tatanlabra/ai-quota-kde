@@ -241,7 +241,14 @@ PlasmoidItem {
     function localTimeText(iso) {
         if (!iso) return ""
         var d = new Date(iso)
-        return isNaN(d.getTime()) ? "" : Qt.formatDateTime(d, "ddd d MMM · HH:mm")
+        // Qt.formatDateTime con un formato de texto usa el locale C, no el del
+        // escritorio: en un sistema en espanol rendia "Sat 12 Sep" con todo lo demas
+        // traducido. toLocaleDateString con Qt.locale() da "sab 12 sept". Medido con
+        // QLocale es_CL: "Sat 12 Sep" frente a "sab 12 sept".
+        return isNaN(d.getTime())
+            ? ""
+            : d.toLocaleDateString(Qt.locale(), "ddd d MMM") + " · "
+              + d.toLocaleTimeString(Qt.locale(), "HH:mm")
     }
 
     function _countdown(deltaMs) {
@@ -261,8 +268,8 @@ PlasmoidItem {
         var target = new Date(d.getFullYear(), d.getMonth(), d.getDate())
         var day = target.getTime() === today.getTime() ? i18n("today")
             : target.getTime() === tomorrow.getTime() ? i18n("tomorrow")
-            : Qt.formatDate(d, "ddd d MMM")
-        return day + ", " + Qt.formatTime(d, "HH:mm")
+            : d.toLocaleDateString(Qt.locale(), "ddd d MMM")
+        return day + ", " + d.toLocaleTimeString(Qt.locale(), "HH:mm")
     }
 
     function renewalText(providerKey, windowId) {

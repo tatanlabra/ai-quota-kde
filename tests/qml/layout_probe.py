@@ -105,15 +105,73 @@ component = {
     "tooltip": "C.QuotaTooltip",
     "compact": "HUD.CompactRepresentation",
 }[surface]
+# Catalogo de traduccion opcional. El fixture resuelve i18n como identidad, que basta
+# para medir layout pero rinde los msgid en ingles. Una captura para un post en espanol
+# tiene que salir en espanol, asi que --lang carga po/<lang>.po y lo inyecta como tabla.
+catalog = "({})"
+if "--lang" in sys.argv:
+    import json as _json
+    import re as _re
+    from pathlib import Path as _Path
+
+    lang = sys.argv[sys.argv.index("--lang") + 1]
+    # Qt no toma el locale del entorno para los nombres de dia y mes de
+    # Qt.formatDate: con LC_ALL=es_CL.UTF-8 seguia rindiendo "Mon 14 Sep". Si se pide
+    # el catalogo de un idioma, sus fechas van en ese idioma o la captura sale mestiza.
+    from PySide6.QtCore import QLocale
+
+    QLocale.setDefault(QLocale(lang))
+    po = _Path(sys.argv[1]).resolve().parents[3] / "po" / f"{lang}.po"
+    text = po.read_text(encoding="utf-8")
+
+    # Solo estas cuatro secuencias aparecen en un .po. `unicode_escape` seria mas
+    # corto y esta mal: interpreta los bytes como latin-1, asi que "mañana" sale
+    # "maÃ±ana" y el mojibake acaba publicado en la captura.
+    _ESCAPES = {"n": "\n", "t": "\t", '"': '"', "\\": "\\"}
+
+    def _unquote(block):
+        joined = "".join(
+            _re.sub(r'^"|"$', "", line.strip())
+            for line in block.strip().splitlines()
+        )
+        return _re.sub(r"\\(.)", lambda m: _ESCAPES.get(m.group(1), m.group(1)), joined)
+
+    table = {}
+    entries = _re.split(r"\n\n+", text)
+    for entry in entries:
+        if entry.lstrip().startswith("#~") or "msgid" not in entry:
+            continue
+        ctx = _re.search(r'^msgctxt ((?:"[^"]*"\s*)+)', entry, _re.M)
+        mid = _re.search(r'^msgid ((?:"[^"]*"\s*)+)', entry, _re.M)
+        mstr = _re.search(r'^msgstr(?:\[0\])? ((?:"[^"]*"\s*)+)', entry, _re.M)
+        if not mid or not mstr:
+            continue
+        source, target = _unquote(mid.group(1)), _unquote(mstr.group(1))
+        if not source or not target:
+            continue
+        table[source] = target
+        if ctx:
+            table[_unquote(ctx.group(1)) + "\u0004" + source] = target
+    # ensure_ascii deja el separador de contexto U+0004 y los acentos como escapes
+    # \uXXXX. Insertados literales en el fuente QML, el control char no sobrevive.
+    catalog = _json.dumps(table)
+
 qml = f'''import QtQuick
 import "{ui}" as HUD
 import "{ui}/components" as C
 import "{ui}/components"
 Item {{
  width: {width}; height: {height}
- function i18n(s) {{var args = arguments; return s.replace(/%([1-9])/g,
-     function(m,n) {{return n < args.length ? args[n] : m}})}}
- function i18nc() {{return i18n.apply(null, Array.prototype.slice.call(arguments,1))}}
+ readonly property var catalog: {catalog}
+ function i18n(s) {{var args = arguments; var t = catalog[s] || s
+     return t.replace(/%([1-9])/g, function(m,n) {{return n < args.length ? args[n] : m}})}}
+ function i18nc(c, s) {{var args = Array.prototype.slice.call(arguments, 1)
+     args[0] = catalog[c + "\u0004" + s] || catalog[s] || s
+     return i18n.apply(null, args)}}
+ function i18np(s, p, n) {{var args = Array.prototype.slice.call(arguments, 2)
+     args.unshift(catalog[n === 1 ? s : p] || (n === 1 ? s : p))
+     return i18n.apply(null, args)}}
+ function i18ncp(c, s, p, n) {{return i18np.apply(null, Array.prototype.slice.call(arguments, 1))}}
  QtObject {{ id: pi
  objectName: "fixtureState"
  property int compactMode: 0
