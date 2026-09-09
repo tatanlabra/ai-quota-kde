@@ -4,10 +4,15 @@ Description=Refresh AI quota monitor cache periodically
 [Timer]
 # Las ventanas 5h/7d cambian lento; sondear cada 60s disparaba HTTP 429 (rate limit)
 # en la usage endpoint de Claude. 5 min es de sobra y evita el rate limiting.
-OnBootSec=45s
+# OnBootSec alineado con el drop-in de ~/.config/systemd/user/ai-quota-monitor.timer.d/override.conf
+# (contrato boot-window-codex-webview). Antes decia 45s y el override 4min: dos
+# fuentes discrepando para el mismo numero. El drop-in SE MANTIENE porque este
+# instalador reescribe la unidad base en cada corrida; consolidar aqui solo
+# seria durable hasta la proxima reinstalacion.
+OnBootSec=300s
 OnUnitActiveSec=300s
 AccuracySec=30s
-Persistent=true
+# Sin Persistent=: solo aplica a OnCalendar= y este timer es monotonico.
 
 [Install]
 WantedBy=timers.target
