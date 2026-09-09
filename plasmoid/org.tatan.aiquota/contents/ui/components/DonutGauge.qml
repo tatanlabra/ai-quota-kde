@@ -33,7 +33,7 @@ Item {
     property url iconSource: ""          // logo del proveedor (PNG/SVG); tiene prioridad sobre label
     property bool iconIsMask: false      // true = recolorear (SVG monocromo); false = color original
     property color iconMaskColor: HudPalette.text
-    property real iconScale: 0.90         // fracción del cuadrado inscrito en el hueco central
+    property real iconScale: 0.95         // fracción del cuadrado inscrito en el hueco central
     property string iconFontFamily: HudPalette.glyphFont
     // Identidad de proveedor en dos tonos: interno oscuro / externo claro.
     property color innerColor: HudPalette.fallbackAccent
@@ -74,9 +74,13 @@ Item {
     // fitted in the inscribed square, so even their corners cannot touch a ring.
     readonly property real diameter: Math.min(width, height)
     readonly property bool hasResetRing: showResetRing && resetDaysRemaining >= 0
-    readonly property real resetWidth: Math.max(1, diameter * 0.03)
-    readonly property real ringWidth: Math.max(1.2, diameter * 0.055)
-    readonly property real ringGap: Math.max(1, diameter * 0.035)
+    // Trazo ligeramente mas ancho para que el arco se lea de un vistazo en el panel,
+    // donde la dona mide unos 34 px. Ensanchar el anillo encoge la apertura central y
+    // con ella el icono, asi que el hueco se recupera apretando el gap entre anillos:
+    // linea +9 %, icono +3 % y los dos anillos siguen distinguiendose.
+    readonly property real resetWidth: Math.max(1, diameter * 0.032)
+    readonly property real ringWidth: Math.max(1.2, diameter * 0.060)
+    readonly property real ringGap: Math.max(1, diameter * 0.032)
     readonly property real outerRadius: diameter / 2 - 1 - ringWidth / 2
         - (hasResetRing ? resetWidth + ringGap : 0)
     readonly property real innerRadius: outerRadius - ringWidth - ringGap

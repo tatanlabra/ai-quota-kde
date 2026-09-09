@@ -15,6 +15,12 @@ engine = QQmlEngine()
 ui = QUrl.fromLocalFile(sys.argv[1]).toString()
 surface = sys.argv[2]
 width = int(sys.argv[3])
+# Alto del lienzo. El fixture usa 650 para que un desborde tenga sitio donde asomar y
+# el test lo detecte; una captura para publicar quiere el alto real de la vista, sin
+# el fondo muerto que sobra debajo del contenido.
+height = 40 if surface == "compact" else 650
+if "--height" in sys.argv:
+    height = int(sys.argv[sys.argv.index("--height") + 1])
 funcs = {
     "windowOf": "({})",
     "confidenceText": '"API"',
@@ -104,7 +110,7 @@ import "{ui}" as HUD
 import "{ui}/components" as C
 import "{ui}/components"
 Item {{
- width: {width}; height: {40 if surface == "compact" else 650}
+ width: {width}; height: {height}
  function i18n(s) {{var args = arguments; return s.replace(/%([1-9])/g,
      function(m,n) {{return n < args.length ? args[n] : m}})}}
  function i18nc() {{return i18n.apply(null, Array.prototype.slice.call(arguments,1))}}
@@ -135,7 +141,7 @@ if root is None:
     print([e.toString() for e in c.errors()])
     sys.exit(2)
 window = QQuickWindow()
-window.setGeometry(0, 0, width, 650)
+window.setGeometry(0, 0, width, height)
 root.setParentItem(window.contentItem())
 window.show()
 
