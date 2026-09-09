@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: AI Quota HUD\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-06 19:27-0300\n"
+"POT-Creation-Date: 2026-09-08 22:43-0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -86,8 +86,8 @@ msgid "updated %1"
 msgstr ""
 
 #: plasmoid/org.tatan.aiquota/contents/ui/FullRepresentation.qml:44
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:446
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:578
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:467
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:599
 msgid "no data"
 msgstr ""
 
@@ -146,128 +146,148 @@ msgctxt "botón que arranca el colector"
 msgid "⟳ refresh"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:251
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:258
 msgctxt "cuenta atrás en horas y minutos"
 msgid "in %1h %2m"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:255
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:262
 msgctxt "cuenta atrás en días y horas"
 msgid "in %1d %2h"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:262
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:269
 msgid "today"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:263
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:270
 msgid "tomorrow"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:272
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:279
 msgid "no renewal"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:277
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:284
 msgid "local cutoff pending"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:277
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:284
 msgid "renewal pending"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:281
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:288
 msgctxt "%1 es un día y una hora, %2 una cuenta atrás"
 msgid "observed reset %1 · %2"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:283
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:290
 msgctxt "%1 es un día y una hora, %2 una cuenta atrás"
 msgid "local cutoff %1 · %2"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:286
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:293
 msgctxt "%1 es un día y una hora, %2 una cuenta atrás"
 msgid "renews %1 · %2"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:307
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:314
 msgctxt "antigüedad en minutos"
 msgid "%1m ago"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:308
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:315
 msgctxt "antigüedad en horas"
 msgid "%1h ago"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:321
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:328
 msgctxt "dato preservado de caché y su antigüedad"
 msgid "⚠ cached · %1"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:323
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:330
 msgid "⚠ API balance not configured"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:326
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:333
 msgid "⚠ no compatible local log"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:327
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:334
 msgid "⚠ Antigravity quota unavailable"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:329
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:336
 msgid "⚠ no live data"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:430
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:437
 msgctxt "%1 es el nombre de una ventana de cuota, %2 una cuenta atrás"
 msgid "next reset: %1 · %2"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:449
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:454
+msgctxt "solicitudes de Antigravity contadas hoy"
+msgid "Antigravity (today)"
+msgstr ""
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:456
+msgctxt "solicitudes del CLI de Gemini contadas hoy"
+msgid "Gemini CLI (today)"
+msgstr ""
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:458
+msgctxt "saldo de la cuenta en dolares"
+msgid "USD balance"
+msgstr ""
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:460
+msgctxt "presupuesto propio en pesos chilenos"
+msgid "CLP budget"
+msgstr ""
+
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:470
 #, javascript-format
 msgctxt "porcentaje de cuota que queda libre"
 msgid "%1% free"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:457
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:478
 msgctxt "abreviatura de solicitudes"
 msgid "%1 req."
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:458
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:479
 msgctxt "abreviatura de tokens"
 msgid "%1 tok"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:459
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:480
 msgctxt "abreviatura de créditos"
 msgid "%1 cred."
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:477
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:498
 msgctxt "etiqueta corta: dato oficial del proveedor"
 msgid "OFFICIAL"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:478
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:499
 msgctxt "etiqueta corta: observado en local"
 msgid "LOCAL"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:479
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:500
 msgctxt "etiqueta corta: estimación configurada"
 msgid "EST."
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:481
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:502
 msgctxt "etiqueta corta: sin dato"
 msgid "NO DATA"
 msgstr ""
 
-#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:588
+#: plasmoid/org.tatan.aiquota/contents/ui/main.qml:609
 msgid "No data — start the ai-quota-monitor.service unit"
 msgstr ""

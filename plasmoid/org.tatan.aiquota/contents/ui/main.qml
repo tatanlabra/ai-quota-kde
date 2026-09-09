@@ -438,12 +438,26 @@ PlasmoidItem {
                      _countdown(d.getTime() - Date.now()))
     }
 
+    // El colector escribe sus etiquetas en espanol y llegaban a pantalla sin pasar por
+    // el catalogo: en un escritorio en ingles se leia "Saldo USD" entre cadenas
+    // traducidas. La etiqueta del dato queda como respaldo, que es su sitio, y la
+    // presentacion la decide la interfaz.
     function windowShortName(providerKey, windowId) {
         var w = windowOf(providerKey, windowId)
         if (!w) return windowId
         if (windowId === "session" || windowId === "weekly") {
             var duration = String(w.label || "").match(/\((\d+[mhd])\)/)
             return duration ? duration[1] : String(w.label || windowId)
+        }
+        switch (windowId) {
+        case "antigravity_activity":
+            return i18nc("solicitudes de Antigravity contadas hoy", "Antigravity (today)")
+        case "gemini_cli_activity":
+            return i18nc("solicitudes del CLI de Gemini contadas hoy", "Gemini CLI (today)")
+        case "balance":
+            return i18nc("saldo de la cuenta en dolares", "USD balance")
+        case "budget":
+            return i18nc("presupuesto propio en pesos chilenos", "CLP budget")
         }
         return String(w.label || windowId)
     }

@@ -169,3 +169,27 @@ def test_dates_are_formatted_through_the_desktop_locale():
     main = (UI / "main.qml").read_text(encoding="utf-8")
     assert "toLocaleDateString(Qt.locale()" in main
     assert "toLocaleTimeString(Qt.locale()" in main
+
+
+def test_no_translation_is_left_marked_as_a_guess():
+    """`msgmerge` adivina, y una marca `#, fuzzy` borrada en bloque publica su adivinanza.
+
+    falsified_by: 2026-09-08, ocurrido de verdad. Al anadir `Antigravity (today)`,
+    msgmerge la caso por parecido con una entrada vieja y propuso «Antigravity /
+    Gemini», que no es su traduccion; limpiar los marcadores con una regex la acepto en
+    silencio y quedo en el catalogo compilado. Este gate no distingue una traduccion
+    buena de una mala --ninguno puede-- pero obliga a que ninguna llegue al .mo sin que
+    una persona la haya mirado: tras cada `msgmerge`, o se corrige o el test esta rojo.
+    """
+    text = PO.read_text(encoding="utf-8")
+    fuzzy = [
+        number
+        for number, line in enumerate(text.splitlines(), 1)
+        if line.startswith("#, ") and "fuzzy" in line
+    ]
+    assert fuzzy == [], f"entradas marcadas como adivinanza en las lineas {fuzzy}"
+    # No se exige que no haya entradas obsoletas (`#~`). Son de donde msgmerge saca sus
+    # casamientos falsos, si, pero tambien es su razon de ser: si una cadena retirada
+    # vuelve, recupera su traduccion en vez de perderla. El control correcto no es
+    # borrar el historial sino que ninguna adivinanza pase sin revisar, que es lo que
+    # comprueba la asercion de arriba.

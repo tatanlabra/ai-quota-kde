@@ -122,7 +122,9 @@ if "--lang" in sys.argv:
 
     QLocale.setDefault(QLocale(lang))
     po = _Path(sys.argv[1]).resolve().parents[3] / "po" / f"{lang}.po"
-    text = po.read_text(encoding="utf-8")
+    # El ingles es el idioma fuente: sus cadenas SON los msgid y no hay catalogo. Aun
+    # asi hace falta fijar el locale, o las fechas saldrian en el idioma del sistema.
+    text = po.read_text(encoding="utf-8") if po.exists() else ""
 
     # Solo estas cuatro secuencias aparecen en un .po. `unicode_escape` seria mas
     # corto y esta mal: interpreta los bytes como latin-1, asi que "mañana" sale
@@ -152,9 +154,13 @@ if "--lang" in sys.argv:
         table[source] = target
         if ctx:
             table[_unquote(ctx.group(1)) + "\u0004" + source] = target
-    # ensure_ascii deja el separador de contexto U+0004 y los acentos como escapes
-    # \uXXXX. Insertados literales en el fuente QML, el control char no sobrevive.
-    catalog = _json.dumps(table)
+    # Dos cuidados con el literal que se inserta en el QML. ensure_ascii deja el
+    # separador de contexto U+0004 y los acentos como escapes \uXXXX, porque un control
+    # char literal no sobrevive al fuente. Y los parentesis no son adorno: en un binding
+    # QML, `{}` se lee como bloque de codigo vacio y la propiedad queda undefined, asi
+    # que con un catalogo vacio --el ingles, que es el idioma fuente-- la vista se
+    # rendia sin valores ni insignias.
+    catalog = "(" + _json.dumps(table) + ")"
 
 qml = f'''import QtQuick
 import "{ui}" as HUD
