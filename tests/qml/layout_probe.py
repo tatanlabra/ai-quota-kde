@@ -1,6 +1,6 @@
 """Render the real HUD views with synthetic data; never read the user cache."""
 
-import os, sys, json
+import os, pathlib, sys, json
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 # El renderizador software es correcto SOLO offscreen: es determinista, rapido y no
@@ -94,6 +94,61 @@ if "--sample" in sys.argv:
         result = CliRunner().invoke(cli.app, ["sample", "--write-cache"])
         assert result.exit_code == 0, result.stdout
         sample_report = cli.STATUS_JSON.read_text()
+
+    # Reloj fijo, para que dos corridas den los mismos bytes.
+    #
+    # Por que hace falta: `sample` deriva generated_at y todos los reset_at de
+    # datetime.now(), y main.qml compara esas fechas contra Date.now() para calcular
+    # las cuentas atras Y los arcos. Dos renders separados por un minuto producen
+    # imagenes distintas, asi que un video no se puede regenerar identico ni se puede
+    # tener un gate de determinismo. Medido el 2026-09-09.
+    #
+    # Se descarto libfaketime: su sintaxis `x0` la rechaza la version instalada
+    # (0.9.13) y `@<fecha>` fija el INICIO pero el reloj sigue avanzando, asi que el
+    # render de 40 s podia cruzar un minuto igualmente. Y ralentizar el reloj cuelga
+    # cualquier sleep, porque espera segundos falsos.
+    #
+    # En su lugar: se desplazan TODAS las marcas de tiempo del informe por el mismo
+    # delta, de modo que el informe queda tal como `sample` lo habria escrito en el
+    # instante congelado, y se sustituye la fuente de tiempo de los cuerpos inyectados
+    # por ese mismo instante. El informe sigue siendo el que genera el CLI real: solo
+    # se traslada en el tiempo.
+    if "--frozen-now" in sys.argv:
+        import datetime as _dt
+        import json as _json_frozen
+
+        frozen_iso = sys.argv[sys.argv.index("--frozen-now") + 1]
+        frozen = _dt.datetime.fromisoformat(frozen_iso)
+        if frozen.tzinfo is None:
+            frozen = frozen.replace(tzinfo=_dt.timezone.utc)
+        report_obj = _json_frozen.loads(sample_report)
+        base = _dt.datetime.fromisoformat(report_obj["generated_at"])
+        delta = frozen - base
+
+        def _shift(value):
+            if isinstance(value, dict):
+                return {k: _shift(v) for k, v in value.items()}
+            if isinstance(value, list):
+                return [_shift(v) for v in value]
+            if isinstance(value, str):
+                try:
+                    stamp = _dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+                except ValueError:
+                    return value
+                if stamp.tzinfo is None:
+                    return value
+                moved = stamp + delta
+                return (
+                    moved.astimezone(_dt.timezone.utc)
+                    .isoformat()
+                    .replace("+00:00", "Z")
+                    if value.endswith("Z")
+                    else moved.isoformat()
+                )
+            return value
+
+        sample_report = _json_frozen.dumps(_shift(report_obj))
+        FROZEN_MS = int(frozen.timestamp() * 1000)
     main = (Path(sys.argv[1]) / "main.qml").read_text()
     bodies = []
     for match in re.finditer(r"^    function (\w+)\(", main, re.MULTILINE):
@@ -108,7 +163,13 @@ if "--sample" in sys.argv:
             elif main[end] == "}":
                 depth -= 1
                 if depth == 0:
-                    bodies.append(main[match.start() : end + 1].replace("root.", "pi."))
+                    body = main[match.start() : end + 1].replace("root.", "pi.")
+                    if "--frozen-now" in sys.argv:
+                        # La fuente de tiempo se sustituye SOLO en los cuerpos
+                        # inyectados al fixture; el QML instalado no se toca.
+                        body = body.replace("Date.now()", "pi.frozenNow")
+                        body = body.replace("new Date()", "new Date(pi.frozenNow)")
+                    bodies.append(body)
                     break
     mock = "\n".join(bodies) + '\nfunction refreshButtonText() { return "Refresh"; }'
     for name in ("gaugeOrder", "detailOrder"):
@@ -121,6 +182,11 @@ component = {
     "popup": "HUD.FullRepresentation",
     "tooltip": "C.QuotaTooltip",
     "compact": "HUD.CompactRepresentation",
+    # El escenario del video: las tres vistas en un solo lienzo, compartiendo el mismo
+    # objeto de estado. Es una superficie mas para la sonda, asi que reutiliza el
+    # fixture entero --datos ficticios en tempdir, catalogo .po, cuerpos reales de
+    # main.qml-- en vez de duplicarlo en un renderizador aparte que podria derivar.
+    "stage": "D.DemoStage",
 }[surface]
 # Catalogo de traduccion opcional. El fixture resuelve i18n como identidad, que basta
 # para medir layout pero rinde los msgid en ingles. Una captura para un post en espanol
@@ -179,10 +245,15 @@ if "--lang" in sys.argv:
     # rendia sin valores ni insignias.
     catalog = "(" + _json.dumps(table) + ")"
 
+probe_dir = QUrl.fromLocalFile(str(pathlib.Path(__file__).resolve().parent)).toString()
+# Sin --frozen-now el fixture usa el reloj real, que es lo correcto para los tests de
+# geometria: no dependen de la hora y no hace falta fijarla.
+frozen_property = str(FROZEN_MS) if "--frozen-now" in sys.argv else "Date.now()"
 qml = f'''import QtQuick
 import "{ui}" as HUD
 import "{ui}/components" as C
 import "{ui}/components"
+import "{probe_dir}" as D
 Item {{
  width: {width}; height: {height}
  readonly property var catalog: {catalog}
@@ -211,6 +282,7 @@ Item {{
  property real amberThreshold: 0.3
  property real redThreshold: 0.1
  property bool showResetRing: true
+ property real frozenNow: {frozen_property}
  {mock}
  }}
  {component} {{ objectName: "surface"; plasmoidItem: pi; width: parent.width; height: {"implicitHeight" if surface == "tooltip" else "parent.height"} }}
@@ -235,7 +307,187 @@ root.setParentItem(window.contentItem())
 window.show()
 
 
+def grab_now(item, path, timeout_ms=4000):
+    """Un grab sincrono. grabToImage() es asincrono y devuelve None si el item no se
+    esta renderizando; un bucle anidado con vigilante convierte las dos cosas en un
+    fallo ruidoso en vez de un cuelgue silencioso, que es como se perdieron dos horas
+    el 2026-09-09 con setOpacity(0)."""
+    from PySide6.QtCore import QEventLoop
+
+    grab = item.grabToImage()
+    if grab is None:
+        raise RuntimeError(f"grabToImage() devolvio nulo en {path.name}")
+    loop = QEventLoop()
+    grab.ready.connect(loop.quit)
+    watchdog = QTimer()
+    watchdog.setSingleShot(True)
+    watchdog.timeout.connect(loop.quit)
+    watchdog.start(timeout_ms)
+    loop.exec()
+    if not watchdog.isActive():
+        raise RuntimeError(f"el grab agoto el vigilante en {path.name}")
+    watchdog.stop()
+    image = grab.image()
+    if image.isNull():
+        raise RuntimeError(f"imagen nula en {path.name}")
+    if not grab.saveToFile(str(path)):
+        raise RuntimeError(f"no se pudo escribir {path}")
+    return image.width(), image.height()
+
+
+def find_in(root_item, container_name, target_name):
+    """Busca `target_name` DENTRO del subarbol `container_name`.
+
+    Hace falta porque en el escenario hay tres instancias de cada dona --barra, visor y
+    popup-- y una busqueda global devolveria la primera en orden de arbol, que es un
+    detalle de como esta escrito el QML y no algo en lo que se pueda confiar."""
+
+    def walk(item, name):
+        if item.objectName() == name:
+            return item
+        for child in item.childItems():
+            found = walk(child, name)
+            if found is not None:
+                return found
+        return None
+
+    container = walk(root_item, container_name)
+    return None if container is None else walk(container, target_name)
+
+
+def render_sequence(root_item, surf, state):
+    """Renderiza el guion completo a PNG, en un solo proceso.
+
+    Un proceso por fotograma costaria ~1,5 s de arranque x 486 = 12 min; con el engine
+    vivo son decenas de milisegundos por fotograma. Y mas importante: el estado se muta
+    con EVENTOS REALES --MouseMove sobre la celda, press+release sobre el selector--, no
+    escribiendo las propiedades finales, asi que lo que se ve en el video son los
+    manejadores del widget reaccionando de verdad. Cada fotograma comprueba que el
+    estado que pedia el guion es el que quedo; si un clic no prende, el render falla en
+    voz alta en vez de producir un video donde el selector nunca cambia."""
+    import hashlib
+    import pathlib as _pathlib
+
+    sys.path.insert(0, str(_pathlib.Path(__file__).resolve().parent))
+    import demo_storyboard as sb
+
+    dest = _pathlib.Path(sys.argv[sys.argv.index("--sequence") + 1])
+    dest.mkdir(parents=True, exist_ok=True)
+    only = None
+    if "--frames" in sys.argv:
+        only = {int(n) for n in sys.argv[sys.argv.index("--frames") + 1].split(",")}
+
+    def send_mouse(kind, point, buttons):
+        QCoreApplication.sendEvent(
+            window, QMouseEvent(kind, point, point, Qt.LeftButton, buttons, Qt.NoModifier)
+        )
+
+    def centre(item):
+        return item.mapToScene(QPointF(item.width() / 2, item.height() / 2))
+
+    # Precalentado: cada Canvas del HUD usa renderStrategy Cooperative, asi que el
+    # primer fotograma tras aparecer una capa puede salir con el arco viejo. Se visitan
+    # todos los estados una vez antes de grabar nada.
+    for provider in ("claude", "codex", "gemini", "copilot", "deepseek"):
+        state.setProperty("selectedProvider", provider)
+        state.setProperty("hoveredProvider", provider)
+        for name, value in (("tooltipOpacity", 1.0), ("popupOpacity", 1.0)):
+            surf.setProperty(name, value)
+        app.processEvents()
+
+    rows = []
+    frames = sb.total_frames()
+    for index in range(frames):
+        want = sb.state_at(index)
+        surf.setProperty("tooltipOpacity", want.tooltip_opacity)
+        surf.setProperty("tooltipLift", want.tooltip_lift)
+        surf.setProperty("popupOpacity", want.popup_opacity)
+        surf.setProperty("popupLift", want.popup_lift)
+
+        if want.hover is not None:
+            cell = find_in(root_item, "stageCompact", "gauge-" + want.hover)
+            if cell is None:
+                raise RuntimeError(f"no existe gauge-{want.hover} en la barra compacta")
+            send_mouse(QEvent.MouseMove, centre(cell), Qt.NoButton)
+        else:
+            QCoreApplication.sendEvent(window, QEvent(QEvent.Leave))
+
+        if want.click is not None:
+            button = find_in(root_item, "stagePopup", want.click)
+            if button is None:
+                raise RuntimeError(f"no existe {want.click} en el popup")
+            point = centre(button)
+            send_mouse(QEvent.MouseButtonPress, point, Qt.LeftButton)
+            send_mouse(QEvent.MouseButtonRelease, point, Qt.NoButton)
+        elif want.select is not None and want.popup_opacity > 0.99:
+            state.setProperty("selectedProvider", want.select)
+
+        app.processEvents()
+        if want.ease is not None:
+            # Dos pases en las transiciones: la primera pasada aplica el cambio de
+            # geometria y la segunda deja que el Canvas cooperativo lo pinte.
+            app.processEvents()
+
+        if want.hover is not None:
+            got = state.property("hoveredProvider")
+            if got != want.hover:
+                raise RuntimeError(
+                    f"fotograma {index}: se pidio hover {want.hover} y quedo {got}: "
+                    "el MouseMove no llego al manejador"
+                )
+        if want.select is not None and want.popup_opacity > 0.99:
+            got = state.property("selectedProvider")
+            if got != want.select:
+                raise RuntimeError(
+                    f"fotograma {index}: se pidio seleccion {want.select} y quedo {got}"
+                )
+
+        if only is not None and index not in only:
+            continue
+        path = dest / f"frame-{index:04d}.png"
+        w, h = grab_now(surf, path)
+        expected = (sb.STAGE_WIDTH * sb.SCALE, sb.STAGE_HEIGHT * sb.SCALE)
+        if (w, h) != expected:
+            raise RuntimeError(f"{path.name}: {w}x{h}, se esperaba {expected[0]}x{expected[1]}")
+        rows.append(
+            {
+                "name": path.name,
+                "shot": want.shot,
+                "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+                "width": w,
+                "height": h,
+            }
+        )
+
+    manifest = {
+        "frames": frames,
+        "rendered": len(rows),
+        "fps": sb.FPS,
+        "stage": [sb.STAGE_WIDTH, sb.STAGE_HEIGHT],
+        "scale": sb.SCALE,
+        "platform": app.platformName(),
+        "graphics_api": window.rendererInterface().graphicsApi().name,
+        "rows": rows,
+    }
+    (dest / "manifest.json").write_text(json.dumps(manifest, indent=1), encoding="utf-8")
+    print(f"secuencia: {len(rows)}/{frames} fotogramas en {dest}", file=sys.stderr)
+    app.exit(0)
+
+
 def done():
+    if "--no-hover" in sys.argv:
+        # El puntero virtual de una plataforma sin raton arranca en (0,0), que cae
+        # DENTRO de la primera celda de la barra compacta: su MouseArea reporta
+        # containsMouse y la celda se dibuja con fondo HudPalette.panel, o sea un
+        # recuadro mas claro detras de un solo proveedor. Medido el 2026-09-09: 37 745
+        # pixeles de #0e1120 a escala 6. No es el foco de teclado --activeFocusItem()
+        # es el contentItem de la ventana, no la celda--, es el hover.
+        #
+        # En una figura de documentacion ese recuadro es informacion legitima (asi se
+        # ve al pasar el raton); en un teaser destaca uno de los cinco proveedores sin
+        # motivo y se lee como un error de composicion. La bandera lo quita solo ahi.
+        QCoreApplication.sendEvent(window, QEvent(QEvent.Leave))
+        app.processEvents()
     errors = []
     texts = []
     icons = []
@@ -345,6 +597,21 @@ def done():
             ensure_ascii=False,
         )
     )
+
+    if "--sequence" in sys.argv:
+        # Una excepcion dentro de un slot de Qt NO termina el proceso: Python la imprime
+        # y el bucle de eventos sigue corriendo, asi que el comando se cuelga hasta el
+        # timeout y parece que el render tarda cuando en realidad ya fallo. Medido el
+        # 2026-09-09 con un AttributeError. De ahi este try/except explicito.
+        try:
+            render_sequence(root, surf, state)
+        except Exception as exc:  # noqa: BLE001 - hay que salir con codigo, no propagar
+            import traceback
+
+            traceback.print_exc()
+            print(f"SECUENCIA FALLIDA: {exc}", file=sys.stderr)
+            app.exit(2)
+        return
 
     def finish():
         if "--image" in sys.argv:

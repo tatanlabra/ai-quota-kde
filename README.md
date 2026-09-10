@@ -223,6 +223,27 @@ salta explícitamente si la máquina no tiene dispositivo de render.
 Medición completa, tabla de las ocho combinaciones de plataforma y backend, y por qué
 `eglfs` gana a `wayland` (una pantalla bloqueada cuelga el grab): `docs/capturas-rhi-2026-09-09.md`.
 
+### Video de demostración y teaser
+
+Las dos piezas de difusión también se generan por script, no a mano:
+
+```bash
+scripts/render_demo_video.sh    # 486 fotogramas + escalera de CRF + póster
+scripts/render_teaser.sh        # teaser 1280x720 y su variante 640x360
+```
+
+El video **no** es una grabación de pantalla: es una secuencia renderizada por la misma
+sonda que verifican los tests, con el guion en `tests/qml/demo_storyboard.py` como dato y
+el reloj congelado. Cada fotograma es función pura de su índice, así que dos corridas dan
+la misma imagen y `tests/test_demo_video.py` puede comprobarlo en vez de que alguien mire
+el video a ojo. El estado se muta con eventos reales —`MouseMove` sobre la celda de la
+barra, `press`+`release` sobre el selector del popup— y cada fotograma comprueba que el
+estado que pedía el guion es el que quedó: si un clic no prende, el render falla en voz
+alta.
+
+Por qué no se graba la pantalla, qué se hereda de la skill de captura y qué no, y la
+escalera de CRF medida: `docs/video-demo-2026-09-09.md`.
+
 ## Gobernanza de datos
 
 - `tests/fixtures/sanitized/` puede versionarse si no contiene identificadores,
