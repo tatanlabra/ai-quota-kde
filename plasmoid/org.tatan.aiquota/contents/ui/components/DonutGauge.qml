@@ -33,7 +33,13 @@ Item {
     property url iconSource: ""          // logo del proveedor (PNG/SVG); tiene prioridad sobre label
     property bool iconIsMask: false      // true = recolorear (SVG monocromo); false = color original
     property color iconMaskColor: HudPalette.text
-    property real iconScale: 0.95         // fracción del cuadrado inscrito en el hueco central
+    // Fracción del cuadrado inscrito en la apertura central. 1.0 es el máximo
+    // geométrico: la semidiagonal del recuadro del icono dividida por
+    // apertureRadius vale exactamente iconScale, así que con 1.0 la esquina cae
+    // sobre la circunferencia de apertura y no queda holgura oculta. Aún así no
+    // roza el anillo: apertureRadius ya descuenta ringWidth/2 - 1, y los logos
+    // son siluetas centradas que no llenan sus esquinas.
+    property real iconScale: 1.0
     property string iconFontFamily: HudPalette.glyphFont
     // Identidad de proveedor en dos tonos: interno oscuro / externo claro.
     property color innerColor: HudPalette.fallbackAccent
@@ -205,7 +211,11 @@ Item {
         visible: gauge.centerText === "" && String(gauge.iconSource) !== ""
         anchors.centerIn: parent
         objectName: "providerIcon"
-        width: gauge.contentSize * Math.min(1, gauge.iconScale)
+        // Sin Math.min: ese techo silencioso recortaba cualquier valor > 1 sin
+        // avisar, y con ello desactivaba el propio invariante que protege la
+        // contención (hypot(w,h)/2 <= apertureRadius, en test_qml_layout_runtime).
+        // Un iconScale: 1.10 salía verde. Ahora pone rojas las 15 combinaciones.
+        width: gauge.contentSize * gauge.iconScale
         height: width
         source: gauge.iconSource
         isMask: gauge.iconIsMask

@@ -5,7 +5,7 @@
         "Name": "AI Quota HUD",
         "Description": "Local-first HUD for Claude Code, Codex, Antigravity/Gemini, Copilot CLI and DeepSeek quotas",
         "Icon": "utilities-system-monitor",
-        "Version": "0.3.0",
+        "Version": "0.3.1",
         "License": "MIT",
         "Authors": [{"Name": "tatán"}],
         "Category": "System Information"

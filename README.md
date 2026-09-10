@@ -198,6 +198,31 @@ Plasma/Kirigami; se omiten explícitamente si PySide6 no está instalado.
 Los fixtures crudos están excluidos deliberadamente. No subas logs de conversación,
 exports del navegador, archivos de autenticación ni capturas con saldos reales.
 
+### Capturas: los tests van por software, la publicación por GPU
+
+No es un detalle de configuración, y confundirlo publicó cuatro logotipos en negro:
+
+```bash
+# Tests de geometría: offscreen + renderizador software. Deterministas, rápidos,
+# sin GPU. Es lo que corre pytest.
+PYTHONPATH=src python -m pytest -q
+
+# Capturas para publicar: eglfs + EGL_PLATFORM=surfaceless, o sea RHI sobre GPU.
+scripts/capture_previews.sh build/previews es 3
+```
+
+`Kirigami.Icon` con `isMask: true` **no tiñe** bajo `QSGSoftwareRenderer`, así que con el
+renderizador software los cuatro logotipos enmascarados salen negros (Codex, blanco) y
+ningún test de geometría puede verlo: una silueta negra tiene la misma anchura, altura y
+apertura que una teñida. `scripts/capture_previews.sh` aborta si no encuentra
+`/dev/dri/renderD*` y comprueba en cada captura que el render salió por RHI, a la escala
+pedida y sin desborde de texto. `tests/test_qml_icon_tint.py` mide el color del píxel
+dentro del disco central de cada dona sobre el artefacto que produce ese script, y se
+salta explícitamente si la máquina no tiene dispositivo de render.
+
+Medición completa, tabla de las ocho combinaciones de plataforma y backend, y por qué
+`eglfs` gana a `wayland` (una pantalla bloqueada cuelga el grab): `docs/capturas-rhi-2026-09-09.md`.
+
 ## Gobernanza de datos
 
 - `tests/fixtures/sanitized/` puede versionarse si no contiene identificadores,

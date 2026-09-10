@@ -3,7 +3,24 @@
 import os, sys, json
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("QT_QUICK_BACKEND", "software")
+# El renderizador software es correcto SOLO offscreen: es determinista, rapido y no
+# exige sesion grafica, que es lo que la suite de geometria necesita. Pero
+# Kirigami.Icon con isMask NO tine bajo QSGSoftwareRenderer --su IconMaterial solo
+# existe como material RHI, sin el fallback que si tiene ShadowedRectangle--, asi que
+# una captura para publicar tiene que salir por RHI o los cuatro logotipos
+# enmascarados salen negros (codex, blanco). Medido el 2026-09-09; ya estaba
+# registrado en docs/layout-validation-2026-09-06.md:31-34 y se perdio en 74bd40a.
+# Por eso el default va condicionado: pedir una plataforma con GPU basta para
+# desactivarlo, sin tener que acordarse de una segunda variable.
+if os.environ["QT_QPA_PLATFORM"].split(";")[0] == "offscreen":
+    os.environ.setdefault("QT_QUICK_BACKEND", "software")
+# El DPI logico se fija a 96 para que la geometria no dependa del monitor de la
+# maquina ni de la plataforma Qt. Medido el 2026-09-09: offscreen reporta 96, pero
+# eglfs deriva 100 del panel real (1920x1080 a 143,91 DPI fisico) y con ello el
+# tooltip pasaba de 310 a 318 px logicos --y la imagen publicada de 1260x930 a
+# 1260x954-- sin que cambiara una linea de QML. Con 96 las dos plataformas dan el
+# mismo alto, asi que lo que miden los tests es lo que se publica.
+os.environ.setdefault("QT_FONT_DPI", "96")
 from PySide6.QtCore import QUrl, QTimer, QPointF, QObject, Qt, QEvent, QCoreApplication
 from PySide6.QtGui import QGuiApplication, QFont, QMouseEvent
 from PySide6.QtQml import QQmlEngine, QQmlComponent
@@ -207,6 +224,14 @@ if root is None:
 window = QQuickWindow()
 window.setGeometry(0, 0, width, height)
 root.setParentItem(window.contentItem())
+# show() sin banderas ni opacidad, a proposito, y las tres platformas de captura lo
+# toleran. Dos intentos de "mejorarlo" fallaron el 2026-09-09 y quedan aqui para que
+# nadie los repita: (1) setOpacity(0) hace que el compositor no renderice la ventana,
+# asi que grabToImage() devuelve un puntero NULO --"Attempt to retrieve 'ready' from
+# null object"-- y el proceso se cuelga sin guardar nada; (2) Qt.ToolTip sin padre
+# corre el mismo riesgo de no mapearse en Wayland. La captura publicada va por
+# QT_QPA_PLATFORM=eglfs con EGL_PLATFORM=surfaceless, que no abre ventana en absoluto
+# y por eso funciona incluso con la pantalla bloqueada.
 window.show()
 
 
@@ -254,12 +279,27 @@ def done():
             return
         if item.objectName() == "providerIcon":
             parent = item.parentItem()
+            # rect_px es el recuadro del icono en el sistema de coordenadas del PNG:
+            # el grab se hace sobre `surf`, asi que mapToItem(surf, .) por el dpr da
+            # exactamente donde cae el icono en el fichero. Es lo que permite medir
+            # su color sin coordenadas magicas escritas a mano.
+            origin = item.mapToItem(surf, QPointF(0, 0))
+            dpr = window.devicePixelRatio()
             icons.append(
                 {
                     "source": item.property("source").toString(),
                     "width": item.width(),
                     "height": item.height(),
                     "aperture": parent.property("apertureRadius"),
+                    "provider": parent.objectName().replace("gauge-", ""),
+                    "mask": bool(parent.property("iconIsMask")),
+                    "tint": parent.property("iconMaskColor").name(),
+                    "rect_px": [
+                        round(origin.x() * dpr),
+                        round(origin.y() * dpr),
+                        round(item.width() * dpr),
+                        round(item.height() * dpr),
+                    ],
                 }
             )
         if item.objectName() in ("metricLabel", "metricValue"):
@@ -292,6 +332,10 @@ def done():
                 "surface": surface,
                 "width": width,
                 "height": surf.height(),
+                "platform": app.platformName(),
+                "backend": QQuickWindow.sceneGraphBackend(),
+                "graphics_api": window.rendererInterface().graphicsApi().name,
+                "dpr": window.devicePixelRatio(),
                 "text_count": len(texts),
                 "overflow": errors,
                 "selected_visits": selected_visits,
