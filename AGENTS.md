@@ -73,3 +73,14 @@ Widget KDE Plasma 6 local-first para visualizar uso de Claude Code, Codex y Gemi
   `QTimer.singleShot`. Todo trabajo hecho dentro de un slot va en `try/except` que llame a
   `app.exit(<código>)`. Síntoma delator: un proceso Qt que no imprime nada y muere por timeout,
   con la traza ya escrita en stderr.
+
+- **El endpoint de uso de Claude limita por token, y sondearlo congela el widget sin que nada
+  falle.** Medido el 2026-10-03: `/api/oauth/usage` devolvía 429 con `retry-after: 3153` y el
+  widget llevaba 1,5 h mostrando 0 %/0 % mientras el uso real era 6 %/1 %. La única lectura buena
+  llegó 75 s después de que Claude Code renovara el token OAuth, con el timer sondeando cada 300 s
+  toda la noche; un 429 no movió el plazo de espera. El servicio salía `0/SUCCESS` en cada 429, así
+  que ni `OnFailure=` ni el journal lo delataban: solo `stale_since` en `status.json`. Claude Code
+  ya trae el mismo % en el campo `rate_limits` de la entrada de su statusline (de las cabeceras
+  `anthropic-ratelimit-unified-*`), con 0 llamadas extra; desde ese día es la fuente primaria y el
+  endpoint es respaldo con espera persistida. Síntoma delator: `stale_since` de horas en una ventana
+  `official` y `retry-after` cercano a 3600 en una consulta a mano (token por stdin, `-H @-`).

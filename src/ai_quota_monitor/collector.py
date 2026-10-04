@@ -87,10 +87,14 @@ def merge_preserving(prev: StatusReport | None, fresh: StatusReport) -> StatusRe
                 merged.append(w)
         # Una respuesta sana es la autoridad sobre el conjunto de métricas: una
         # ventana ausente se retiró y no debe revivir desde una caché de otro esquema.
-        # Solo un proveedor degradado puede haber omitido ventanas por un fallo puntual.
-        if prov.status != "ok":
+        # Solo un proveedor degradado puede haber omitido ventanas por un fallo puntual,
+        # o uno sano las que declaró no haber consultado esta vez (skipped_windows).
+        skipped = set(prov.skipped_windows)
+        if prov.status != "ok" or skipped:
             for (pid, wid), old in prev_windows.items():
-                if pid == prov.id and wid not in seen_ids and wid not in absent:
+                if pid != prov.id or wid in seen_ids or wid in absent:
+                    continue
+                if prov.status != "ok" or wid in skipped:
                     kept = old.model_copy(deep=True)
                     kept.stale_since = old.stale_since or prev.generated_at
                     merged.append(kept)
@@ -222,13 +226,13 @@ def collect_all(cfg: dict[str, Any], online: bool | None = None) -> StatusReport
     if providers_cfg.get("claude", {}).get("enabled", True):
         if allow_network:
             try:
-                from .providers.claude import collect as collect_claude
+                from .providers.claude import STATUSLINE_SOURCE, collect as collect_claude
                 p = collect_claude(cfg)
                 providers.append(p)
                 if p.status != "ok" and p.error:
                     warnings.append(f"claude: {p.error}")
-                # Si tiene datos oficiales, usó red
-                if any(w.confidence == "official" for w in p.windows):
+                # Si tiene datos oficiales del endpoint, usó red; la statusline es local.
+                if any(w.confidence == "official" and w.source != STATUSLINE_SOURCE for w in p.windows):
                     network_used = True
             except Exception as exc:
                 log.exception("claude provider falló")

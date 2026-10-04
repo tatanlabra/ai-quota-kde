@@ -7,13 +7,34 @@
 set -euo pipefail
 
 CREDS="$HOME/.claude/.credentials.json"
+CACHE="$HOME/.cache/ai-quota-monitor"
+# Epoch hasta el que el endpoint pidió esperar. Cada 429 trae retry-after de ~1 h
+# (medido el 2026-10-03: 3153 s) y consultar antes solo gasta la cuota del token.
+BACKOFF="$CACHE/claude-oauth-backoff"
+
+_write_backoff() {
+  [[ -d "$CACHE" ]] || return 0
+  local tmp
+  tmp=$(mktemp "$CACHE/.claude-oauth-backoff.XXXXXX") || return 0
+  printf '%s\n' "$1" > "$tmp" && mv -f "$tmp" "$BACKOFF" || rm -f "$tmp"
+}
+
+NOW=$(date +%s)
+UNTIL=0
+if [[ -r "$BACKOFF" ]]; then read -r UNTIL < "$BACKOFF" || true; fi
+[[ "$UNTIL" =~ ^[0-9]+$ ]] || UNTIL=0
 
 # ── OAuth usage (porcentaje oficial 5h/7d) ──────────────────────────────────
 # El token OAuth tiene TTL ~8h y solo Claude Code lo refresca (usa el refreshToken).
 # Aquí NO lo refrescamos (evitamos pelear con Claude Code por el archivo): si está
 # expirado, emitimos token_expired y dejamos que ccusage + caché stale cubran el hueco.
 OAUTH='{"error":"credentials_not_found"}'
-if [[ -f "$CREDS" ]]; then
+if [[ "${AIQ_CLAUDE_SKIP_OAUTH:-}" == "1" ]]; then
+  # El colector ya tiene el % fresco de la statusline de Claude Code: sin red.
+  OAUTH='{"error":"skipped"}'
+elif (( NOW < UNTIL )); then
+  OAUTH="{\"error\":\"rate_limited\",\"retry_after_until\":$UNTIL}"
+elif [[ -f "$CREDS" ]]; then
   # Imprime el accessToken solo si no está expirado; "EXPIRED" si venció; "" si falta.
   TOKEN=$(python3 -c "
 import json, sys, time
@@ -39,16 +60,25 @@ except Exception:
   else
     # Capturamos cuerpo + código HTTP para distinguir 429 (rate limit) de 401/403
     # (token rechazado) y de fallos de red. La usage endpoint limita agresivamente.
-    RESP=$(curl --silent --max-time 6 -w $'\n%{http_code}' \
+    RESP=$(curl --silent --max-time 6 -w $'\n%{http_code} %header{retry-after}' \
       "https://api.anthropic.com/api/oauth/usage" \
       -H "Authorization: Bearer $TOKEN" \
       -H "Content-Type: application/json" \
-      2>/dev/null) || RESP=$'\n000'
-    CODE="${RESP##*$'\n'}"
+      2>/dev/null) || RESP=$'\n000 '
+    TAIL="${RESP##*$'\n'}"
     BODY="${RESP%$'\n'*}"
+    CODE="${TAIL%% *}"
+    RA="${TAIL#* }"
     case "$CODE" in
-      200) OAUTH="$BODY" ;;
-      429) OAUTH='{"error":"rate_limited"}' ;;
+      200) OAUTH="$BODY"; rm -f "$BACKOFF" ;;
+      429)
+        # retry-after puede venir vacío o como fecha HTTP: entonces 1 h, acotado a [60 s, 6 h].
+        [[ "$RA" =~ ^[0-9]+$ ]] || RA=3600
+        if (( RA < 60 )); then RA=60; fi
+        if (( RA > 21600 )); then RA=21600; fi
+        UNTIL=$(( NOW + RA ))
+        _write_backoff "$UNTIL"
+        OAUTH="{\"error\":\"rate_limited\",\"retry_after_until\":$UNTIL}" ;;
       401|403) OAUTH='{"error":"token_rejected"}' ;;
       *)   OAUTH='{"error":"api_request_failed"}' ;;
     esac

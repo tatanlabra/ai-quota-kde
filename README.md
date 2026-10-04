@@ -64,6 +64,22 @@ El colector y la interfaz estan separados y solo se comunican por un fichero:
 - La compuerta anti-429 vive en la unidad (`StartLimitIntervalSec=600`,
   `StartLimitBurst=4`), no en el QML: la interfaz no puede saltarsela. El widget se
   autolimita a 2 arranques manuales por ventana para dejarle cupo al temporizador.
+- Claude no se consulta en red mientras haya una sesión de Claude Code abierta. Claude Code
+  le pasa a su statusline el % oficial de 5 h y 7 d (`rate_limits`, sacado de las cabeceras
+  `anthropic-ratelimit-unified-*` de sus propias respuestas); la statusline lo deja en
+  `~/.cache/ai-quota-monitor/claude-rate-limits.json` y el colector lo usa mientras tenga
+  menos de 10 min. Solo después llama a `/api/oauth/usage`, y tras un 429 respeta el
+  `retry-after` (`claude-oauth-backoff`). Motivo, medido el 2026-10-03: ese endpoint limita
+  por token, cada 429 trae `retry-after` de ~1 h, y sondear cada 300 s dejó el widget
+  congelado en una lectura de horas atrás. Para conectarlo, añade a tu statusline:
+
+  ```bash
+  rl="$(printf '%s' "$json" | jq -c 'try (.rate_limits | with_entries(select(.key == "five_hour" or .key == "seven_day") | .value |= {used_percentage, resets_at}) | select(length > 0)) catch empty')"
+  d="$HOME/.cache/ai-quota-monitor"
+  if [ -n "$rl" ] && [ -d "$d" ] && t="$(mktemp "$d/.claude-rate-limits.XXXXXX")"; then
+    printf '{"captured_at":%s,"rate_limits":%s}\n' "$(date +%s)" "$rl" >"$t" && mv -f "$t" "$d/claude-rate-limits.json"
+  fi
+  ```
 
 Medido el 2026-09-06 con `plasmoidviewer`: 11 muestras de recoleccion en vivo lanzadas
 por el propio widget antes del cambio, 0 despues; la recarga tras una escritura de la
@@ -73,7 +89,7 @@ cache tarda 274 ms.
 
 | Proveedor | Fuente | Clasificación |
 |---|---|---|
-| Claude | API de uso de Claude Code y `ccusage` local | oficial + observada localmente |
+| Claude | `rate_limits` de la statusline de Claude Code; API de uso de respaldo; `ccusage` local | oficial + observada localmente |
 | Codex | endpoint que usa Codex y fallback de snapshots locales | oficial |
 | Antigravity / Gemini | `agy /usage` (cuota semanal por grupo) + conteos separados en logs locales | cuota oficial por grupo + actividad observada |
 | Copilot CLI | `quotaSnapshots.chat` en `~/.copilot/session-state/*/events.jsonl` | observación local del último snapshot oficial expuesto por el CLI |
@@ -287,7 +303,9 @@ DeepSeek balance. Install it with
 `ai-quota-monitor sample --write-cache` for a credential-free demo.
 
 The Plasma widget only reads sanitized local JSON. Credentials stay inside dedicated
-helper scripts. The installed timer explicitly opts into online refresh; the widget
+helper scripts. Claude percentages come first from the `rate_limits` field Claude Code
+passes to its status line (see the snippet above); the usage endpoint is only a fallback
+that honours `retry-after`. The installed timer explicitly opts into online refresh; the widget
 itself stays local. No raw conversation logs or browser
 exports belong in the repository. The installation uses user-local paths and requires
 no `sudo`. See the Spanish sections above for the complete command and security guide.

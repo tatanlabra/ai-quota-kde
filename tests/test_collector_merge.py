@@ -211,3 +211,32 @@ def test_collect_all_online_override_uses_network_providers(monkeypatch):
 
     assert called["claude"] is True
     assert report.network_used is True
+
+
+def test_skipped_window_survives_a_healthy_run_marked_stale():
+    """Claude con statusline fresca no llama al endpoint: el saldo USD previo no se pierde."""
+    usd = ProviderWindow(id="usd", label="USD", used=3.0, limit=30.0, unit="usd",
+                         percent=0.1, confidence="official", source="api")
+    prev_p = _good_claude()
+    prev_p.windows.append(usd)
+    prev = StatusReport(generated_at="2026-10-03T11:00:00-03:00", providers=[prev_p])
+    fresh_p = _good_claude()
+    fresh_p.skipped_windows = ["usd"]
+    fresh = StatusReport(generated_at="2026-10-03T11:05:00-03:00", providers=[fresh_p])
+
+    merged = merge_preserving(prev, fresh)
+    kept = next((w for w in merged.providers[0].windows if w.id == "usd"), None)
+    assert kept is not None and kept.used == 3.0
+    assert kept.stale_since == "2026-10-03T11:00:00-03:00"
+
+
+def test_healthy_run_without_skip_still_retires_missing_window():
+    usd = ProviderWindow(id="usd", label="USD", used=3.0, limit=30.0, unit="usd",
+                         percent=0.1, confidence="official", source="api")
+    prev_p = _good_claude()
+    prev_p.windows.append(usd)
+    prev = StatusReport(generated_at="2026-10-03T11:00:00-03:00", providers=[prev_p])
+    fresh = StatusReport(generated_at="2026-10-03T11:05:00-03:00", providers=[_good_claude()])
+
+    merged = merge_preserving(prev, fresh)
+    assert all(w.id != "usd" for w in merged.providers[0].windows)

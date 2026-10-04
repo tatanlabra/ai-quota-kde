@@ -11,6 +11,9 @@ CONFIG_TOML = CONFIG_DIR / "config.toml"
 
 CLAUDE_CREDS = HOME / ".claude" / ".credentials.json"
 CLAUDE_PROJECTS_DIR = HOME / ".claude" / "projects"
+# % oficial de 5 h y 7 d que Claude Code pasa a su statusline (lo saca de las cabeceras
+# anthropic-ratelimit-unified-* de sus propias respuestas). Lo escribe la statusline.
+CLAUDE_STATUSLINE_JSON = CACHE_DIR / "claude-rate-limits.json"
 
 # Codex — fuente oficial: snapshots de rate_limits en los rollouts del CLI.
 # Codex CLI persiste cada rate-limit recibido de la API en eventos token_count.

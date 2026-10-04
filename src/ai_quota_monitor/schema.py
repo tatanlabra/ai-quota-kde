@@ -42,6 +42,10 @@ class Provider(BaseModel):
     # este plan (p.ej. Codex 'prolite' ya no tiene ventana de 5h). No son un fallo
     # transitorio: dejaron de existir, así que el merge NO debe preservarlas.
     absent_windows: list[str] = Field(default_factory=list)
+    # Ventanas que esta corrida no consultó a propósito (p.ej. Claude con la statusline
+    # al día no llama al endpoint, que es la única fuente del saldo USD). No son fallo ni
+    # retiro: el merge conserva el valor previo y lo marca stale.
+    skipped_windows: list[str] = Field(default_factory=list)
 
 
 class StatusReport(BaseModel):
