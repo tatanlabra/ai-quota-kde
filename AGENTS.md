@@ -86,3 +86,21 @@ Widget KDE Plasma 6 local-first para visualizar uso de Claude Code, Codex y Gemi
   `official` y `retry-after` cercano a 3600 en una consulta a mano (token por stdin, `-H @-`).
   Desde el 2026-10-04 `refresh --online` sale 75 cuando una cuota oficial lleva más de 30 min
   vieja en dos corridas, y `OnFailure=` avisa una vez.
+- **El video de demostración era no determinista por tres causas, y ninguna era una animación.**
+  Medido el 2026-10-04: el QML del plasmoide no tiene `Behavior` ni `Animation`, y la hipótesis
+  que se había registrado («animaciones con reloj real») era falsa. (1) `sample` leía el reloj
+  dos veces (`generated_at` 0,35 ms después de los `reset_at`): al trasladar el informe al
+  instante congelado, cada reinicio caía en `hh:59:59.9996`, y el motor JS de QML **redondea las
+  fracciones al milisegundo** (`.999500` sube, `.999499` no), así que Copilot salía 22:59 o 23:00
+  según la carga. (2) Los cortes de actividad van a la medianoche local, que un traslado no
+  conserva. (3) El `Canvas` cooperativo de las donas entrega su pintura un fotograma tarde. Hoy
+  `sample --now` escribe el informe en el instante congelado y la sonda captura hasta que dos
+  capturas seguidas coinciden. Antes de suponer un mecanismo, `rg` en el código: la imagen de
+  diferencias mostró un texto, no un anillo.
+- **Copilot CLI dejó de registrar su cuota en sus eventos locales desde la 1.0.81.** La 1.0.44
+  escribía `quotaSnapshots` en cada `model.model_call_success`; desde la 1.0.81 ese evento no
+  existe, ni con modelos premium, y el widget mostró durante un mes el saldo de agosto. La cuota
+  sale ahora de `gh api /copilot_internal/user` (endpoint interno, solo con `--online`): conviene
+  preferir `percent_remaining`, que trae los decimales que `remaining` redondea por la facturación
+  por tokens. Un snapshot local cuyo `resetDate` ya pasó es de un ciclo cerrado y no se presenta
+  como saldo. Síntoma delator: una fecha de reinicio en el pasado con `confidence` local.
