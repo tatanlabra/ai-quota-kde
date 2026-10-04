@@ -80,6 +80,13 @@ El colector y la interfaz estan separados y solo se comunican por un fichero:
     printf '{"captured_at":%s,"rate_limits":%s}\n' "$(date +%s)" "$rl" >"$t" && mv -f "$t" "$d/claude-rate-limits.json"
   fi
   ```
+- `refresh --online` sale con 75 si una ventana oficial de cuota lleva más de 30 min sin
+  dato fresco en dos corridas seguidas (`collector.persistently_stale`). Eso dispara
+  `OnFailure=` (un aviso por episodio, que `OnSuccess=` cierra al volver a verde); la caché
+  se escribe igual. Exige dos corridas para no avisar en la primera tras una suspensión, y
+  no cuenta lo omitido a propósito (`skipped_windows`), la actividad local ni los saldos.
+  `--offline` nunca falla por esto: deja los datos viejos por diseño, y `quota_status.sh`
+  lee cualquier salida distinta de 0 como refresco fallido.
 
 Medido el 2026-09-06 con `plasmoidviewer`: 11 muestras de recoleccion en vivo lanzadas
 por el propio widget antes del cambio, 0 despues; la recarga tras una escritura de la
@@ -305,7 +312,8 @@ DeepSeek balance. Install it with
 The Plasma widget only reads sanitized local JSON. Credentials stay inside dedicated
 helper scripts. Claude percentages come first from the `rate_limits` field Claude Code
 passes to its status line (see the snippet above); the usage endpoint is only a fallback
-that honours `retry-after`. The installed timer explicitly opts into online refresh; the widget
+that honours `retry-after`. If an official quota stays stale for over 30 minutes, the
+online refresh exits 75 so systemd's `OnFailure=` alerts once. The installed timer explicitly opts into online refresh; the widget
 itself stays local. No raw conversation logs or browser
 exports belong in the repository. The installation uses user-local paths and requires
 no `sudo`. See the Spanish sections above for the complete command and security guide.

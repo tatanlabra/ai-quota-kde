@@ -84,3 +84,5 @@ Widget KDE Plasma 6 local-first para visualizar uso de Claude Code, Codex y Gemi
   `anthropic-ratelimit-unified-*`), con 0 llamadas extra; desde ese día es la fuente primaria y el
   endpoint es respaldo con espera persistida. Síntoma delator: `stale_since` de horas en una ventana
   `official` y `retry-after` cercano a 3600 en una consulta a mano (token por stdin, `-H @-`).
+  Desde el 2026-10-04 `refresh --online` sale 75 cuando una cuota oficial lleva más de 30 min
+  vieja en dos corridas, y `OnFailure=` avisa una vez.

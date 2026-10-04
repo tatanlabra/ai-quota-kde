@@ -105,6 +105,54 @@ def merge_preserving(prev: StatusReport | None, fresh: StatusReport) -> StatusRe
     return fresh
 
 
+# Una ventana oficial de cuota más vieja que esto deja de ser una marca gris en el
+# widget y pasa a ser un fallo del servicio, que es lo único que interrumpe a alguien
+# (OnFailure=). El 2026-10-03 Claude estuvo horas congelado en 0 %/0 % con el uso real
+# en 6 %/1 %, y solo stale_since lo delataba. 30 min son seis corridas del timer.
+STALE_ALERT_AFTER = _dt.timedelta(minutes=30)
+
+
+def persistently_stale(
+    prev: StatusReport | None,
+    report: StatusReport,
+    now: _dt.datetime | None = None,
+    max_age: _dt.timedelta = STALE_ALERT_AFTER,
+) -> list[str]:
+    """Ventanas oficiales de cuota sin dato fresco desde hace más de `max_age`.
+
+    Solo cuentan las que ya estaban viejas en la corrida anterior: tras una suspensión
+    larga, stale_since apunta a antes de dormir y la primera corrida sin red aún la
+    daría por vieja horas. Las que la corrida omitió a propósito (skipped_windows) no
+    son un fallo. Actividad local, saldos y estimaciones tampoco: no son la cuota que
+    decide una delegación.
+    """
+    if prev is None:
+        return []
+    now = now or _dt.datetime.now().astimezone()
+    stale_before = {(p.id, w.id) for p in prev.providers for w in p.windows if w.stale_since}
+    found: list[str] = []
+    for prov in report.providers:
+        skipped = set(prov.skipped_windows)
+        for w in prov.windows:
+            if w.metric_kind != "quota" or w.confidence != "official":
+                continue
+            if not w.stale_since or w.id in skipped or (prov.id, w.id) not in stale_before:
+                continue
+            try:
+                since = _dt.datetime.fromisoformat(w.stale_since)
+            except ValueError:
+                found.append(f"{prov.label} · {w.label}: stale_since ilegible ({w.stale_since!r})")
+                continue
+            if since.tzinfo is None:
+                since = since.astimezone()
+            if now - since > max_age:
+                found.append(
+                    f"{prov.label} · {w.label}: sin dato fresco desde {since:%Y-%m-%d %H:%M}"
+                    + (f" ({prov.error})" if prov.error else "")
+                )
+    return found
+
+
 def _network_allowed(cfg: dict[str, Any], online: bool | None) -> bool:
     if online is not None:
         return online

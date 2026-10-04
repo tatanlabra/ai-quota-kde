@@ -265,6 +265,14 @@ def refresh(offline: bool = typer.Option(True, "--offline/--online")) -> None:
         for e in report.errors:
             console.print(f"[yellow]⚠[/yellow] {e}")
     console.print(f"[green]✓[/green] Caché actualizada: {STATUS_JSON}")
+    # La caché ya quedó escrita; esto solo decide si el servicio avisa. Solo el timer
+    # (--online) tiene que traer datos frescos: --offline los deja viejos por diseño y
+    # quota_status.sh lee su código de salida como "refresco fallido".
+    stale = [] if offline else collector.persistently_stale(prev, report)
+    if stale:
+        for line in stale:
+            typer.echo(f"✗ {line}", err=True)
+        raise typer.Exit(75)  # EX_TEMPFAIL: dispara OnFailure=, un aviso por episodio
 
 
 # ── status ────────────────────────────────────────────────────────────────────
