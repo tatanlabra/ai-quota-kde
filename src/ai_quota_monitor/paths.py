@@ -24,6 +24,7 @@ HELPER_CLAUDE = SCRIPTS_DIR / "helper_claude_usage.sh"
 HELPER_CODEX = SCRIPTS_DIR / "helper_codex_usage.sh"
 HELPER_GEMINI = SCRIPTS_DIR / "helper_gemini_usage.sh"
 HELPER_DEEPSEEK = SCRIPTS_DIR / "helper_deepseek_balance.sh"
+HELPER_COPILOT = SCRIPTS_DIR / "helper_copilot_usage.sh"
 
 DEEPSEEK_ENV_FILE = CONFIG_DIR / "secrets.env"
 

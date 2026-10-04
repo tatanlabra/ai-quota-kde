@@ -99,14 +99,20 @@ cache tarda 274 ms.
 | Claude | `rate_limits` de la statusline de Claude Code; API de uso de respaldo; `ccusage` local | oficial + observada localmente |
 | Codex | endpoint que usa Codex y fallback de snapshots locales | oficial |
 | Antigravity / Gemini | `agy /usage` (cuota semanal por grupo) + conteos separados en logs locales | cuota oficial por grupo + actividad observada |
-| Copilot CLI | `quotaSnapshots.chat` en `~/.copilot/session-state/*/events.jsonl` | observación local del último snapshot oficial expuesto por el CLI |
+| Copilot | `gh api /copilot_internal/user` (solo `--online`); respaldo: `quotaSnapshots.chat` en `~/.copilot/session-state/*/events.jsonl` | oficial; el respaldo es observación local y solo vale mientras su ciclo siga abierto |
 | DeepSeek | API de saldo, opt-in | saldo oficial; presupuesto CLP opcional y estimado |
 
-Copilot se lee sin abrir una sesión nueva ni consultar la red: el proveedor reutiliza el
-último evento estructurado `model.model_call_success` y calcula
-`usedRequests / entitlementRequests`. La ausencia de snapshot se muestra como dato
-desconocido, nunca como cero. El bucket se etiqueta como `AI Credits / Premium requests`
-porque Copilot puede presentar cualquiera de esos esquemas según el plan.
+Copilot se lee en el camino online con `scripts/helper_copilot_usage.sh`, que llama a
+`gh api /copilot_internal/user`: `gh` guarda el token en el keyring y el helper solo
+devuelve los campos de cuota. Es el endpoint que consultan los propios clientes de
+Copilot, interno y sin documentar; si cambia, el colector conserva el último valor bueno
+con `stale_since`. Hace falta porque desde Copilot CLI 1.0.81 los eventos locales ya no
+traen `quotaSnapshots` (medido el 2026-10-04). Sin red, el proveedor reutiliza el último
+`model.model_call_success` y calcula `usedRequests / entitlementRequests`, pero solo si
+su `resetDate` todavía no pasó: un snapshot de un ciclo cerrado no es el saldo de hoy. La
+ausencia de dato se muestra como desconocida, nunca como cero. El bucket se etiqueta como
+`AI Credits / Premium requests` porque Copilot puede presentar cualquiera de esos
+esquemas según el plan.
 
 Antigravity **no tiene una cuota, tiene dos**, independientes y con relojes distintos:
 `gemini-weekly` (modelos de Google) y `3p-weekly` (Claude/GPT facturados por Google). El
@@ -303,8 +309,8 @@ scripts/uninstall-user.sh --purge-data
 ## English
 
 AI Quota HUD is a local-first KDE Plasma 6 widget for official Claude Code and Codex
-quota windows, available Antigravity quotas, separately observed CLI activity, Copilot
-snapshots, and an optional official
+quota windows, available Antigravity quotas, separately observed CLI activity, the Copilot
+quota from GitHub (via `gh`), and an optional official
 DeepSeek balance. Install it with
 `scripts/install-user.sh`, run `ai-quota-monitor doctor`, and use
 `ai-quota-monitor sample --write-cache` for a credential-free demo.

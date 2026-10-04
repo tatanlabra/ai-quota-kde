@@ -326,8 +326,12 @@ def collect_all(cfg: dict[str, Any], online: bool | None = None) -> StatusReport
     if providers_cfg.get("copilot", {}).get("enabled", False):
         try:
             from .providers.copilot import collect as collect_copilot
-            p = collect_copilot(cfg)
+            # La cuota oficial (`gh api`) solo en el camino online; offline queda el
+            # snapshot local de Copilot CLI, si su ciclo sigue abierto.
+            p = collect_copilot(cfg, allow_network)
             providers.append(p)
+            if any(w.confidence == "official" for w in p.windows):
+                network_used = True
             if p.status != "ok" and p.error:
                 warnings.append(f"copilot: {p.error}")
         except Exception as exc:
