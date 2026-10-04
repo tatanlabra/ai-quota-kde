@@ -120,6 +120,41 @@ def test_the_sequence_is_never_frozen_for_too_long() -> None:
     assert len(set(keys)) >= MIN_DISTINCT_STATES, f"solo {len(set(keys))} estados distintos"
 
 
+def test_the_frozen_sample_is_written_at_the_frozen_instant(monkeypatch, tmp_path) -> None:
+    """`sample --now` tiene que escribir el informe EN ese instante, sin reloj real.
+
+    El video pide el informe en sb.FROZEN_NOW. Hasta el 2026-10-04 la sonda lo generaba
+    con el reloj real y lo trasladaba, y el reloj se colaba por dos sitios: (1) la
+    medianoche local de los cortes de actividad no se conserva al trasladar, asi que
+    "corte local manana" salia a las 14:05 o a las 14:06 segun el minuto de la corrida;
+    (2) generated_at se leia despues que los reset_at, cada reinicio caia 0,35 ms antes de
+    la hora redonda, y el motor JS de QML, que redondea al milisegundo, mostraba el de
+    Copilot como 22:59 o como 23:00. Eso, y no una animacion, era el rojo intermitente del
+    gate de determinismo. falsified_by: 2026-10-04. Calcular la medianoche con
+    datetime.now() reprueba la asercion del corte; volver a dejar generated_at en su
+    default_factory reprueba la de generated_at.
+    """
+    from typer.testing import CliRunner
+
+    from ai_quota_monitor import cli
+
+    status = tmp_path / "status.json"
+    monkeypatch.setattr(cli, "STATUS_JSON", status)
+    monkeypatch.setattr(cli, "CACHE_DIR", tmp_path)
+    result = CliRunner().invoke(cli.app, ["sample", "--write-cache", "--now", sb.FROZEN_NOW])
+    assert result.exit_code == 0, result.stdout
+    report = json.loads(status.read_text(encoding="utf-8"))
+    windows = {
+        (provider["id"], window["id"]): window.get("reset_at")
+        for provider in report["providers"]
+        for window in provider["windows"]
+    }
+    assert report["generated_at"] == "2026-09-09T23:00:00-03:00", report["generated_at"]
+    assert windows[("copilot", "copilot_chat")] == "2026-09-17T02:00:00Z", windows
+    assert windows[("claude", "session")] == "2026-09-10T06:00:00Z", windows
+    assert windows[("gemini", "antigravity_activity")] == "2026-09-10T00:00:00-03:00", windows
+
+
 @pytest.mark.skipif(importlib.util.find_spec("PySide6") is None, reason="PySide6 no instalado")
 @pytest.mark.skipif(
     not HAS_RENDER_DEVICE,

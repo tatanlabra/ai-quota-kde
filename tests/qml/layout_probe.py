@@ -87,14 +87,6 @@ if "--sample" in sys.argv:
     sys.path.insert(0, str(project / "src"))
     from ai_quota_monitor import cli
 
-    # Only the synthetic sample command runs; all writes go to this temporary folder.
-    with tempfile.TemporaryDirectory(prefix="hud-preview-") as folder:
-        cli.CACHE_DIR = Path(folder)
-        cli.STATUS_JSON = Path(folder) / "status.json"
-        result = CliRunner().invoke(cli.app, ["sample", "--write-cache"])
-        assert result.exit_code == 0, result.stdout
-        sample_report = cli.STATUS_JSON.read_text()
-
     # Reloj fijo, para que dos corridas den los mismos bytes.
     #
     # Por que hace falta: `sample` deriva generated_at y todos los reset_at de
@@ -108,47 +100,32 @@ if "--sample" in sys.argv:
     # render de 40 s podia cruzar un minuto igualmente. Y ralentizar el reloj cuelga
     # cualquier sleep, porque espera segundos falsos.
     #
-    # En su lugar: se desplazan TODAS las marcas de tiempo del informe por el mismo
-    # delta, de modo que el informe queda tal como `sample` lo habria escrito en el
-    # instante congelado, y se sustituye la fuente de tiempo de los cuerpos inyectados
-    # por ese mismo instante. El informe sigue siendo el que genera el CLI real: solo
-    # se traslada en el tiempo.
+    # En su lugar: `sample --now` escribe el informe en el instante congelado, y la
+    # fuente de tiempo de los cuerpos inyectados se sustituye por ese mismo instante.
+    # Hasta el 2026-10-04 el informe se generaba con el reloj real y se trasladaba en el
+    # tiempo, y el reloj se colaba por dos sitios: los cortes de actividad van a la
+    # medianoche local, que el traslado no conserva ("corte local manana, 14:05" o
+    # "14:06" segun el minuto de la corrida), y generated_at se leia despues que los
+    # reset_at, asi que cada reinicio caia 0,35 ms antes de la hora redonda y el redondeo
+    # al milisegundo del motor JS lo mostraba como 22:59 o como 23:00.
+    sample_args = ["sample", "--write-cache"]
     if "--frozen-now" in sys.argv:
         import datetime as _dt
-        import json as _json_frozen
 
-        frozen_iso = sys.argv[sys.argv.index("--frozen-now") + 1]
-        frozen = _dt.datetime.fromisoformat(frozen_iso)
+        frozen = _dt.datetime.fromisoformat(sys.argv[sys.argv.index("--frozen-now") + 1])
         if frozen.tzinfo is None:
             frozen = frozen.replace(tzinfo=_dt.timezone.utc)
-        report_obj = _json_frozen.loads(sample_report)
-        base = _dt.datetime.fromisoformat(report_obj["generated_at"])
-        delta = frozen - base
-
-        def _shift(value):
-            if isinstance(value, dict):
-                return {k: _shift(v) for k, v in value.items()}
-            if isinstance(value, list):
-                return [_shift(v) for v in value]
-            if isinstance(value, str):
-                try:
-                    stamp = _dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
-                except ValueError:
-                    return value
-                if stamp.tzinfo is None:
-                    return value
-                moved = stamp + delta
-                return (
-                    moved.astimezone(_dt.timezone.utc)
-                    .isoformat()
-                    .replace("+00:00", "Z")
-                    if value.endswith("Z")
-                    else moved.isoformat()
-                )
-            return value
-
-        sample_report = _json_frozen.dumps(_shift(report_obj))
+        sample_args += ["--now", frozen.isoformat()]
         FROZEN_MS = int(frozen.timestamp() * 1000)
+
+    # Only the synthetic sample command runs; all writes go to this temporary folder.
+    with tempfile.TemporaryDirectory(prefix="hud-preview-") as folder:
+        cli.CACHE_DIR = Path(folder)
+        cli.STATUS_JSON = Path(folder) / "status.json"
+        result = CliRunner().invoke(cli.app, sample_args)
+        assert result.exit_code == 0, result.stdout
+        sample_report = cli.STATUS_JSON.read_text()
+
     main = (Path(sys.argv[1]) / "main.qml").read_text()
     bodies = []
     for match in re.finditer(r"^    function (\w+)\(", main, re.MULTILINE):
@@ -306,30 +283,56 @@ root.setParentItem(window.contentItem())
 # y por eso funciona incluso con la pantalla bloqueada.
 window.show()
 
+# Tope de capturas extra por fotograma con settle. Medido el 2026-10-04 sobre 51
+# fotogramas con carga 0 a 41: 50 coincidieron con la primera captura extra y el que
+# llego con el Canvas atrasado necesito dos. Si tras cinco no hay punto fijo, algo se
+# esta animando solo y el render debe fallar en voz alta.
+SETTLE_ATTEMPTS = 5
 
-def grab_now(item, path, timeout_ms=4000):
+
+def grab_now(item, path, timeout_ms=4000, settle=False):
     """Un grab sincrono. grabToImage() es asincrono y devuelve None si el item no se
     esta renderizando; un bucle anidado con vigilante convierte las dos cosas en un
     fallo ruidoso en vez de un cuelgue silencioso, que es como se perdieron dos horas
-    el 2026-09-09 con setOpacity(0)."""
+    el 2026-09-09 con setOpacity(0).
+
+    Con settle, captura hasta que dos capturas seguidas coinciden. El Canvas cooperativo
+    de las donas entrega su pintura un fotograma tarde, y cuantos fotogramas renderiza el
+    bucle entre dos eventos depende del reloj real: medido el 2026-10-04 con carga 22, el
+    anillo del tooltip de Copilot salia con el arco de Claude en una corrida de cada
+    cuatro. Repetir hasta el punto fijo hace que la imagen dependa solo de la escena."""
     from PySide6.QtCore import QEventLoop
 
-    grab = item.grabToImage()
-    if grab is None:
-        raise RuntimeError(f"grabToImage() devolvio nulo en {path.name}")
-    loop = QEventLoop()
-    grab.ready.connect(loop.quit)
-    watchdog = QTimer()
-    watchdog.setSingleShot(True)
-    watchdog.timeout.connect(loop.quit)
-    watchdog.start(timeout_ms)
-    loop.exec()
-    if not watchdog.isActive():
-        raise RuntimeError(f"el grab agoto el vigilante en {path.name}")
-    watchdog.stop()
-    image = grab.image()
-    if image.isNull():
-        raise RuntimeError(f"imagen nula en {path.name}")
+    def take():
+        grab = item.grabToImage()
+        if grab is None:
+            raise RuntimeError(f"grabToImage() devolvio nulo en {path.name}")
+        loop = QEventLoop()
+        grab.ready.connect(loop.quit)
+        watchdog = QTimer()
+        watchdog.setSingleShot(True)
+        watchdog.timeout.connect(loop.quit)
+        watchdog.start(timeout_ms)
+        loop.exec()
+        if not watchdog.isActive():
+            raise RuntimeError(f"el grab agoto el vigilante en {path.name}")
+        watchdog.stop()
+        image = grab.image()
+        if image.isNull():
+            raise RuntimeError(f"imagen nula en {path.name}")
+        return grab, image
+
+    grab, image = take()
+    for _ in range(SETTLE_ATTEMPTS if settle else 0):
+        again, again_image = take()
+        if again_image == image:
+            break
+        grab, image = again, again_image
+    else:
+        if settle:
+            raise RuntimeError(
+                f"{path.name}: {SETTLE_ATTEMPTS + 1} capturas seguidas y ninguna repite la anterior"
+            )
     if not grab.saveToFile(str(path)):
         raise RuntimeError(f"no se pudo escribir {path}")
     return image.width(), image.height()
@@ -445,7 +448,7 @@ def render_sequence(root_item, surf, state):
         if only is not None and index not in only:
             continue
         path = dest / f"frame-{index:04d}.png"
-        w, h = grab_now(surf, path)
+        w, h = grab_now(surf, path, settle=True)
         expected = (sb.STAGE_WIDTH * sb.SCALE, sb.STAGE_HEIGHT * sb.SCALE)
         if (w, h) != expected:
             raise RuntimeError(f"{path.name}: {w}x{h}, se esperaba {expected[0]}x{expected[1]}")

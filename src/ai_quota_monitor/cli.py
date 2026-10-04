@@ -150,22 +150,37 @@ def config_cmd(
 # ── sample ────────────────────────────────────────────────────────────────────
 
 @app.command()
-def sample(write_cache: bool = typer.Option(False, "--write-cache")) -> None:
+def sample(
+    write_cache: bool = typer.Option(False, "--write-cache"),
+    at: str | None = typer.Option(
+        None, "--now", hidden=True,
+        help="Instante ISO con zona horaria en que se escribe el informe (video reproducible).",
+    ),
+) -> None:
     """Genera datos ficticios para probar la UI sin proveedores reales."""
     from .schema import Provider, ProviderWindow, StatusReport
 
-    now = datetime.now(timezone.utc)
+    # Una sola lectura del reloj, y en la zona del instante dado: el video de demostracion
+    # pide el informe en un instante congelado y tiene que salir identico en cada corrida
+    # (tests/test_demo_video.py). La medianoche local se calcula en esa misma zona.
+    if at is None:
+        now = datetime.now().astimezone()
+    else:
+        now = datetime.fromisoformat(at)
+        if now.tzinfo is None:
+            raise typer.BadParameter("--now necesita zona horaria", param_hint="--now")
 
     def reset_after(**delta: int) -> str:
-        return (now + timedelta(**delta)).isoformat().replace("+00:00", "Z")
+        moved = (now + timedelta(**delta)).astimezone(timezone.utc)
+        return moved.isoformat().replace("+00:00", "Z")
 
     def next_local_midnight() -> str:
-        local_now = datetime.now().astimezone()
-        return (local_now + timedelta(days=1)).replace(
+        return (now + timedelta(days=1)).replace(
             hour=0, minute=0, second=0, microsecond=0
         ).isoformat()
 
     report = StatusReport(
+        generated_at=now.isoformat(),
         network_used=False,
         providers=[
             Provider(id="claude", label="CLAUDE", status="ok", windows=[
